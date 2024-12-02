@@ -1,0 +1,18 @@
+version: '3.8'
+services:
+  app:
+    build: .
+    environment:
+      - CLIENT_ID=${CLIENT_ID}
+      - CLIENT_SECRET=${CLIENT_SECRET}
+      - TOKEN_ENDPOINT=${TOKEN_ENDPOINT}
+      - GRAPHQL_ENDPOINT=${GRAPHQL_ENDPOINT}
+      - AGENCY_NAME=${AGENCY_NAME}
+      - AGENCIES_ENDPOINT=${AGENCIES_ENDPOINT}
+      - DEBUG=App
+    working_dir: /usr/src/app
+    volumes:
+      - .:/usr/src/app
+    stdin_open: true
+    tty: true
+    command: npm run start
