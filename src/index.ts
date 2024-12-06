@@ -1,7 +1,7 @@
 import { fetchSalesListings, fetchProperties, fetchAndSyncData, fetchRegistrations, fetchRegistrationComments } from './graphql';
 import { initDb, upsertSalesListings, upsertProperties, upsertRegistrations, upsertRegistrationComments } from './database';
 import { debug } from './debug';
-import { getAccessToken, getApiToken } from './auth';
+import { getAccessToken, getAgencyToken } from './auth';
 
 interface SyncOperation {
   fetchFunction: typeof fetchSalesListings | typeof fetchProperties | typeof fetchRegistrations | typeof fetchRegistrationComments;
@@ -30,7 +30,7 @@ const syncOperations: SyncOperation[] = [
 async function main() {
   const db = initDb();
   const accessToken = await getAccessToken();
-  const apiToken = await getApiToken(accessToken);
+  const agencyToken = await getAgencyToken(accessToken);
 
   try {
     while (true) {
@@ -38,7 +38,7 @@ async function main() {
         await fetchAndSyncData(
           operation.fetchFunction,
           operation.upsertFunction,
-          apiToken,
+          agencyToken,
           db,
           operation.name
         );

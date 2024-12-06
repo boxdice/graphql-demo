@@ -50,7 +50,7 @@ export async function getAccessToken(): Promise<string> {
   }
 }
 
-export async function getApiToken(accessToken: string): Promise<string> {
+export async function getAgencyToken(accessToken: string): Promise<string> {
   const agenciesEndpoint = process.env.AGENCIES_ENDPOINT;
   const agencyName = process.env.AGENCY_NAME;
 

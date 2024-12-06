@@ -9,7 +9,7 @@ const DATE_LISTED_GTE = '2023-12-01';
 export async function fetchAndSyncData(
   fetchFunction: Function,
   upsertFunction: Function,
-  apiToken: string,
+  agencyToken: string,
   db: any,
   model: string
 ) {
@@ -20,7 +20,7 @@ export async function fetchAndSyncData(
   while (hasMore) {
     debug(`Fetching data for model=${model} with after=${after} and limit=${limit}`);
 
-    let data = await fetchFunction(apiToken, after, limit);
+    let data = await fetchFunction(agencyToken, after, limit);
 
     if (model == 'comments') {
       data = data['salesListings']['registrations']      
@@ -51,14 +51,14 @@ export async function fetchAndSyncData(
 }
 
 async function fetchGraphQLData<T>(
-  apiToken: string,
+  agencyToken: string,
   query: string,
   variables: Record<string, any>
 ): Promise<T> {
   const graphqlEndpoint = `${process.env.GRAPHQL_ENDPOINT}`;
   const accessToken = await getAccessToken();
   const payload = {
-    token: apiToken,
+    token: agencyToken,
     query,
     variables,
   };
@@ -92,7 +92,7 @@ async function fetchGraphQLData<T>(
 }
 
 export async function fetchSalesListings(
-  apiToken: string,
+  agencyToken: string,
   after: string | null = null,
   limit: number = 100
 ): Promise<{ salesListings: { cursor: string; hasMore: boolean; items: SalesListing[] } }> {
@@ -112,11 +112,11 @@ export async function fetchSalesListings(
 
   const variables = { after, limit, dateListedGte: DATE_LISTED_GTE };
 
-  return fetchGraphQLData(apiToken, query, variables);
+  return fetchGraphQLData(agencyToken, query, variables);
 }
 
 export async function fetchProperties(
-  apiToken: string,
+  agencyToken: string,
   after: string | null = null,
   limit: number = 100
 ): Promise<{ salesListings: { cursor: string; hasMore: boolean; items: Property[] } }> {
@@ -138,11 +138,11 @@ export async function fetchProperties(
 
   const variables = { after, limit, dateListedGte: DATE_LISTED_GTE };
 
-  return fetchGraphQLData(apiToken, query, variables);
+  return fetchGraphQLData(agencyToken, query, variables);
 }
 
 export async function fetchRegistrations(
-  apiToken: string,
+  agencyToken: string,
   after: string | null = null,
   limit: number = 100
 ): Promise<{ salesListings: { cursor: string; hasMore: boolean; items: Property[] } }> {
@@ -172,11 +172,11 @@ export async function fetchRegistrations(
 
   const variables = { after, limit, dateListedGte: DATE_LISTED_GTE };
 
-  return fetchGraphQLData(apiToken, query, variables);
+  return fetchGraphQLData(agencyToken, query, variables);
 }
 
 export async function fetchRegistrationComments(
-  apiToken: string,
+  agencyToken: string,
   after: string | null = null,
   limit: number = 100
 ): Promise<{ salesListings: { cursor: string; hasMore: boolean; items: Property[] } }> {
@@ -200,6 +200,6 @@ export async function fetchRegistrationComments(
 
   const variables = { after, limit, dateListedGte: DATE_LISTED_GTE };
 
-  return fetchGraphQLData(apiToken, query, variables);
+  return fetchGraphQLData(agencyToken, query, variables);
 }
 
