@@ -4,7 +4,7 @@ A simple demo showing how to sync data using the Box and Dice GraphQL API.
 No libraries, no ORMs, no extras - just a barebones example focused on syncing.  
 It does not handle errors, include tests, or do rate limiting.
 
-Once the syncing is complete, you can open the `data.db` files in your  
+Once the syncing is complete, you can open the `data.db` file in your  
 favorite SQLite browser/editor to explore the downloaded data.
 
 ## Setup
