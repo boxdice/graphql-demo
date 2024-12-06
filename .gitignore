@@ -3,3 +3,4 @@ data/
 data.db
 .env
 .DS_Store
+.idea
