@@ -14,5 +14,15 @@ export type SalesListing = {
 export type Registration = {
   id: number;
   contactId: number;
+  salesListingId: number;
   interestLevel: string;
+  contact: {
+    fullName: string;
+  }
+};
+
+export type Comment = {
+  id: number;
+  comment: string;
+  registrationId: number;
 };

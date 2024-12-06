@@ -1,6 +1,6 @@
 import Database, { Database as DbType } from 'better-sqlite3';
 import { debug } from './debug';
-import { SalesListing, Property, Registration } from './types';
+import { SalesListing, Property, Registration, Comment } from './types';
 
 export function initDb(): DbType {
   const db = new Database('./data.db');
@@ -26,10 +26,21 @@ export function initDb(): DbType {
   db.exec(`
       CREATE TABLE IF NOT EXISTS registrations
       (
-          id             INTEGER PRIMARY KEY,
-          contact_id     INTEGER,
-          interest_level TEXT
+          id               INTEGER PRIMARY KEY,
+          contact_id       INTEGER,
+          sales_listing_id INTEGER,
+          interest_level   TEXT,
+          full_name        TEXT
       )`);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS comments
+    (
+        id              INTEGER PRIMARY KEY,
+        comment         TEXT,
+        registration_id INTEGER
+    )`);
+  
 
   db.exec(`
       CREATE TABLE IF NOT EXISTS sync_state
@@ -38,6 +49,7 @@ export function initDb(): DbType {
           last_cursor TEXT,
           model       TEXT
       )`);
+
 
   return db;
 }
@@ -115,22 +127,56 @@ export async function upsertProperties(db: DbType, data: Property[]) {
 
   insertMany(data);
 }
-export async function upsertRegistrations(db: DbType, data: Registration[]) {
+
+export async function upsertRegistrations(db: DbType, data: Registration[], deletedIds: []) {
   debug('Data to sync:', data);
 
   const insert = db.prepare(`
-      INSERT INTO registrations (id, contact_id, interest_level)
-      VALUES (?, ?, ?)
+      INSERT INTO registrations (id, contact_id, interest_level, full_name, sales_listing_id)
+      VALUES (?, ?, ?, ?, ?)
       ON CONFLICT
           (id)
           DO UPDATE SET
       contact_id = excluded.contact_id,
-      interest_level = excluded.interest_level
+      interest_level = excluded.interest_level,
+      full_name = excluded.full_name,
+      sales_listing_id = excluded.sales_listing_id
   `);
 
   const insertMany = db.transaction((items: Registration[]) => {
     for (const item of items) {
-      insert.run(item.id, item.contactId, item.interestLevel);
+      insert.run(item.id, item.contactId, item.interestLevel, item.contact.fullName, item.salesListingId);
+    }
+  });
+
+  insertMany(data);
+
+  if (deletedIds.length > 0) {
+    const deleteStatement = db.prepare(`
+      DELETE FROM registrations
+      WHERE id IN (${deletedIds.map(() => '?').join(', ')})
+    `);
+    deleteStatement.run(...deletedIds);
+  } 
+
+}
+
+export async function upsertRegistrationComments(db: DbType, data: Comment[]) {
+  debug('Data to sync:', data);
+
+  const insert = db.prepare(`
+      INSERT INTO comments (id, comment, registration_id)
+      VALUES (?, ?, ?)
+      ON CONFLICT
+          (id)
+          DO UPDATE SET
+      comment = excluded.comment,
+      registration_id = excluded.registration_id
+  `);
+
+  const insertMany = db.transaction((items: Comment[]) => {
+    for (const item of items) {
+      insert.run(item.id, item.comment, item.registrationId);
     }
   });
 

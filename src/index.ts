@@ -1,11 +1,11 @@
-import { fetchSalesListings, fetchProperties, fetchAndSyncData, fetchRegistrations } from './graphql';
-import { initDb, upsertSalesListings, upsertProperties, upsertRegistrations } from './database';
+import { fetchSalesListings, fetchProperties, fetchAndSyncData, fetchRegistrations, fetchRegistrationComments } from './graphql';
+import { initDb, upsertSalesListings, upsertProperties, upsertRegistrations, upsertRegistrationComments } from './database';
 import { debug } from './debug';
 import { getAccessToken, getApiToken } from './auth';
 
 interface SyncOperation {
-  fetchFunction: typeof fetchSalesListings | typeof fetchProperties | typeof fetchRegistrations;
-  upsertFunction: typeof upsertSalesListings | typeof upsertProperties | typeof upsertRegistrations;
+  fetchFunction: typeof fetchSalesListings | typeof fetchProperties | typeof fetchRegistrations | typeof fetchRegistrationComments;
+  upsertFunction: typeof upsertSalesListings | typeof upsertProperties | typeof upsertRegistrations | typeof upsertRegistrationComments;
   name: string;
 }
 
@@ -29,7 +29,6 @@ const syncOperations: SyncOperation[] = [
 
 async function main() {
   const db = initDb();
-
   const accessToken = await getAccessToken();
   const apiToken = await getApiToken(accessToken);
 
@@ -39,7 +38,6 @@ async function main() {
         await fetchAndSyncData(
           operation.fetchFunction,
           operation.upsertFunction,
-          accessToken,
           apiToken,
           db,
           operation.name

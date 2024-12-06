@@ -2,11 +2,13 @@ import axios from 'axios';
 import { debug } from './debug';
 import { SalesListing, Property } from './types';
 import { getLastCursor, updateCursor } from './database';
+import { getAccessToken } from './auth'
+
+const DATE_LISTED_GTE = '2023-12-01';
 
 export async function fetchAndSyncData(
   fetchFunction: Function,
   upsertFunction: Function,
-  accessToken: string,
   apiToken: string,
   db: any,
   model: string
@@ -18,9 +20,11 @@ export async function fetchAndSyncData(
   while (hasMore) {
     debug(`Fetching data for model=${model} with after=${after} and limit=${limit}`);
 
-    let data = await fetchFunction(accessToken, apiToken, after, limit);
+    let data = await fetchFunction(apiToken, after, limit);
 
-    if (model != 'salesListings') {
+    if (model == 'comments') {
+      data = data['salesListings']['registrations']      
+    } else if (model != 'salesListings') {
       data = data['salesListings']
     }
 
@@ -29,7 +33,11 @@ export async function fetchAndSyncData(
         ...item,
       }));
 
-      await upsertFunction(db, items);
+      if (data[model].deletedIds) {
+        console.log('deleted ids:', data[model].deletedIds);
+      }
+
+      await upsertFunction(db, items, data[model].deletedIds);
     }
 
     hasMore = data[model].hasMore;
@@ -43,13 +51,12 @@ export async function fetchAndSyncData(
 }
 
 async function fetchGraphQLData<T>(
-  accessToken: string,
   apiToken: string,
   query: string,
   variables: Record<string, any>
 ): Promise<T> {
   const graphqlEndpoint = `${process.env.GRAPHQL_ENDPOINT}`;
-
+  const accessToken = await getAccessToken();
   const payload = {
     token: apiToken,
     query,
@@ -67,6 +74,16 @@ async function fetchGraphQLData<T>(
       },
     });
 
+
+    if (response.status != 200) {
+      debug('unexpected response code: ', response.status);
+      // todo: handle access token expired, rate limit responses and general errors
+    } 
+
+    if (!response.data.data) {
+      debug('unexpected response data: ', response.data);
+    }
+    
     return response.data.data;
   } catch (error: any) {
     debug('Error fetching data:', error.response?.data || error.message);
@@ -75,7 +92,6 @@ async function fetchGraphQLData<T>(
 }
 
 export async function fetchSalesListings(
-  accessToken: string,
   apiToken: string,
   after: string | null = null,
   limit: number = 100
@@ -94,13 +110,12 @@ export async function fetchSalesListings(
     }
   `;
 
-  const variables = { after, limit, dateListedGte: "2023-12-01" };
+  const variables = { after, limit, dateListedGte: DATE_LISTED_GTE };
 
-  return fetchGraphQLData(accessToken, apiToken, query, variables);
+  return fetchGraphQLData(apiToken, query, variables);
 }
 
 export async function fetchProperties(
-  accessToken: string,
   apiToken: string,
   after: string | null = null,
   limit: number = 100
@@ -121,12 +136,12 @@ export async function fetchProperties(
     }
   `;
 
-  const variables = { after, limit, dateListedGte: "2023-12-01" };
+  const variables = { after, limit, dateListedGte: DATE_LISTED_GTE };
 
-  return fetchGraphQLData(accessToken, apiToken, query, variables);
+  return fetchGraphQLData(apiToken, query, variables);
 }
+
 export async function fetchRegistrations(
-  accessToken: string,
   apiToken: string,
   after: string | null = null,
   limit: number = 100
@@ -137,17 +152,54 @@ export async function fetchRegistrations(
         registrations(after: $after, limit: $limit) {
           cursor
           hasMore
+          deletedIds
           items {
             id
             interestLevel
             contactId
+            salesListingId
+            contact {
+              id
+              fullName
+              email
+              mobile
+            }
           }
         }
       }
     }
   `;
 
-  const variables = { after, limit, dateListedGte: "2023-12-01" };
+  const variables = { after, limit, dateListedGte: DATE_LISTED_GTE };
 
-  return fetchGraphQLData(accessToken, apiToken, query, variables);
+  return fetchGraphQLData(apiToken, query, variables);
 }
+
+export async function fetchRegistrationComments(
+  apiToken: string,
+  after: string | null = null,
+  limit: number = 100
+): Promise<{ salesListings: { cursor: string; hasMore: boolean; items: Property[] } }> {
+  const query = `
+    query($after: String, $limit: Int, $dateListedGte: ISO8601Date) {
+      salesListings(dateListedGte: $dateListedGte) {
+        registrations {
+          comments(after: $after, limit: $limit) {
+            cursor
+            hasMore
+            items {
+              id
+              content
+              registrationId
+            }
+          }
+        }
+      }
+    }
+  `;
+
+  const variables = { after, limit, dateListedGte: DATE_LISTED_GTE };
+
+  return fetchGraphQLData(apiToken, query, variables);
+}
+
