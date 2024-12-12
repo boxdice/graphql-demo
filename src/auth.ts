@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 import { debug } from './debug';
 
 export interface Agency {
@@ -6,8 +6,8 @@ export interface Agency {
   token: string;
 }
 
-let accessToken: string; 
-let tokenExpiry: number; 
+let accessToken: string;
+let tokenExpiry: number;
 
 export async function getAccessToken(): Promise<string> {
   const tokenEndpoint = process.env.TOKEN_ENDPOINT;
@@ -44,8 +44,8 @@ export async function getAccessToken(): Promise<string> {
 
     return accessToken;
 
-  } catch (error: any) {
-    console.error('Error obtaining access token:', error.response?.data || error.message);
+  } catch (error: unknown) {
+    console.error('Error obtaining access token:', (error as AxiosError).response?.data || (error as Error).message);
     throw error;
   }
 }
@@ -55,7 +55,7 @@ export async function getAgencyToken(accessToken: string): Promise<string> {
   const agencyName = process.env.AGENCY_NAME;
 
   debug('fetching api token');
-  
+
   if (!agenciesEndpoint || !agencyName) {
     throw new Error('Missing API token configuration in environment variables.');
   }
@@ -68,7 +68,7 @@ export async function getAgencyToken(accessToken: string): Promise<string> {
       },
     });
 
-console.log('response.data', response.data.agencies);
+    console.log('response.data', response.data.agencies);
 
     const agency = response.data.agencies.find((agency: Agency) => agency.name === agencyName);
     if (!agency) {
@@ -76,8 +76,8 @@ console.log('response.data', response.data.agencies);
     }
     return agency.token;
 
-  } catch (error: any) {
-    console.error('Error fetching api token:', error.response?.data || error.message);
+  } catch (error: unknown) {
+    console.error('Error fetching api token:', (error as AxiosError).response?.data || (error as Error).message);
     throw error;
   }
 } 

@@ -1,6 +1,6 @@
 import Database, { Database as DbType } from 'better-sqlite3';
 import { debug } from './debug';
-import { SalesListing, Property, Registration, Comment } from './types';
+import { SalesListing, Property, Registration } from './types';
 
 export function initDb(): DbType {
   const db = new Database('./data.db');
@@ -40,7 +40,7 @@ export function initDb(): DbType {
         comment         TEXT,
         registration_id INTEGER
     )`);
-  
+
 
   db.exec(`
       CREATE TABLE IF NOT EXISTS sync_state
@@ -128,7 +128,11 @@ export async function upsertProperties(db: DbType, data: Property[]) {
   insertMany(data);
 }
 
-export async function upsertRegistrations(db: DbType, data: Registration[], deletedIds: []) {
+export async function upsertRegistrations(
+  db: DbType,
+  data: Registration[],
+  deletedIds?: string[]
+): Promise<void> {
   debug('Data to sync:', data);
 
   const insert = db.prepare(`
@@ -145,40 +149,17 @@ export async function upsertRegistrations(db: DbType, data: Registration[], dele
 
   const insertMany = db.transaction((items: Registration[]) => {
     for (const item of items) {
-      insert.run(item.id, item.contactId, item.interestLevel, item.contact.fullName, item.salesListingId);
+      insert.run(item.id, item.contactId, item.interestLevel, item.contact?.fullName, item.salesListingId);
     }
   });
 
   insertMany(data);
 
-  if (deletedIds.length > 0) {
+  if ((deletedIds?.length ?? 0) > 0) {
     const deleteStatement = db.prepare(`
       DELETE FROM registrations
-      WHERE id IN (${deletedIds.map(() => '?').join(', ')})
+      WHERE id IN (${deletedIds!.map(() => '?').join(', ')})
     `);
-    deleteStatement.run(...deletedIds);
-  } 
-
-}
-
-export async function upsertRegistrationComments(db: DbType, data: Comment[]) {
-  debug('Data to sync:', data);
-
-  const insert = db.prepare(`
-      INSERT INTO comments (id, comment, registration_id)
-      VALUES (?, ?, ?)
-      ON CONFLICT
-          (id)
-          DO UPDATE SET
-      comment = excluded.comment,
-      registration_id = excluded.registration_id
-  `);
-
-  const insertMany = db.transaction((items: Comment[]) => {
-    for (const item of items) {
-      insert.run(item.id, item.comment, item.registrationId);
-    }
-  });
-
-  insertMany(data);
+    deleteStatement.run(...deletedIds!);
+  }
 }

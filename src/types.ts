@@ -1,28 +1,39 @@
+export interface PaginatedItem {
+  id: string;
+}
 
-export type Property = {
-  id: number;
+export interface SalesListing extends PaginatedItem {
+  propertyId: string;
+  status: string;
+}
+
+export interface Property extends PaginatedItem {
   address: string;
   beds: number;
-};
+}
 
-export type SalesListing = {
-  id: number;
-  propertyId: number;
-  status: string;
-};
-
-export type Registration = {
-  id: number;
-  contactId: number;
-  salesListingId: number;
+export interface Registration extends PaginatedItem {
   interestLevel: string;
+  contactId: string;
+  salesListingId: string;
   contact: {
+    id: string;
     fullName: string;
-  }
-};
+    email: string;
+    mobile: string;
+  };
+}
 
-export type Comment = {
-  id: number;
-  comment: string;
-  registrationId: number;
-};
+export interface PaginatedResponse<T extends PaginatedItem> {
+  cursor: string;
+  hasMore: boolean;
+  deletedIds?: string[];
+  items: T[];
+}
+
+export interface GraphQLResponse {
+  salesListings: PaginatedResponse<SalesListing> & {
+    properties?: PaginatedResponse<Property>;
+    registrations?: PaginatedResponse<Registration>;
+  };
+}

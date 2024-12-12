@@ -1,54 +1,89 @@
-import { fetchSalesListings, fetchProperties, fetchAndSyncData, fetchRegistrations, fetchRegistrationComments } from './graphql';
-import { initDb, upsertSalesListings, upsertProperties, upsertRegistrations, upsertRegistrationComments } from './database';
+import { fetchSalesListings, fetchProperties, fetchRegistrations } from './graphql';
+import { initDb, upsertSalesListings, upsertProperties, upsertRegistrations } from './database';
+import { PaginatedResponse, PaginatedItem } from './types';
 import { debug } from './debug';
 import { getAccessToken, getAgencyToken } from './auth';
+import { Database as DbType } from 'better-sqlite3';
+import { getLastCursor, updateCursor } from './database';
 
-interface SyncOperation {
-  fetchFunction: typeof fetchSalesListings | typeof fetchProperties | typeof fetchRegistrations | typeof fetchRegistrationComments;
-  upsertFunction: typeof upsertSalesListings | typeof upsertProperties | typeof upsertRegistrations | typeof upsertRegistrationComments;
-  name: string;
+
+interface SyncOperation<T extends PaginatedItem> {
+  fetchFunction: (agencyToken: string, after: string | null, limit: number) => Promise<PaginatedResponse<T>>;
+  upsertFunction: (db: DbType, items: T[], deletedIds?: string[]) => Promise<void>;
+  cursorKey: string;
 }
 
-const syncOperations: SyncOperation[] = [
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const syncOperations: Array<SyncOperation<any>> = [
   {
     fetchFunction: fetchSalesListings,
     upsertFunction: upsertSalesListings,
-    name: 'salesListings',
+    cursorKey: 'salesListings',
   },
   {
     fetchFunction: fetchProperties,
     upsertFunction: upsertProperties,
-    name: 'properties',
+    cursorKey: 'properties',
   },
   {
     fetchFunction: fetchRegistrations,
     upsertFunction: upsertRegistrations,
-    name: 'registrations',
+    cursorKey: 'registrations',
   },
 ];
+
+export async function synchronizeData(
+  fetchFunction: (agencyToken: string, after: string | null, limit: number) => Promise<PaginatedResponse<PaginatedItem>>,
+  upsertFunction: (db: DbType, items: PaginatedItem[], deletedIds?: string[]) => Promise<void>,
+  agencyToken: string,
+  db: DbType,
+  cursorKey: string
+) {
+  let after = getLastCursor(db, cursorKey);
+  let hasMore = true;
+  const limit: number = 100;
+  const WAIT_TIME_BETWEEN_REQUESTS = 300;
+
+  while (hasMore) {
+    debug(`Fetching data for ${cursorKey} with after=${after} and limit=${limit}`);
+
+    const data = await fetchFunction(agencyToken, after, limit);
+
+    if (data.items) {
+      await upsertFunction(db, data.items, data.deletedIds);
+    }
+
+    hasMore = data.hasMore;
+    after = data.cursor;
+
+    await new Promise(resolve => setTimeout(resolve, WAIT_TIME_BETWEEN_REQUESTS));
+  }
+
+  debug(`Data synchronization for ${cursorKey} completed`);
+  updateCursor(db, after, cursorKey);
+}
 
 async function main() {
   const db = initDb();
   const accessToken = await getAccessToken();
   const agencyToken = await getAgencyToken(accessToken);
+  const POLLING_WAIT_TIME = 10000;
 
   try {
     while (true) {
       for (const operation of syncOperations) {
-        await fetchAndSyncData(
+        await synchronizeData(
           operation.fetchFunction,
           operation.upsertFunction,
           agencyToken,
           db,
-          operation.name
+          operation.cursorKey
         );
-        debug(`Synced ${operation.name} successfully.`);
       }
 
-      await new Promise(resolve => setTimeout(resolve, 10000));
+      await new Promise(resolve => setTimeout(resolve, POLLING_WAIT_TIME));
 
     }
-
   } catch (error) {
     debug('Error syncing data:', error);
   } finally {

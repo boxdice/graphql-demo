@@ -1,60 +1,15 @@
 import axios from 'axios';
 import { debug } from './debug';
-import { SalesListing, Property } from './types';
-import { getLastCursor, updateCursor } from './database';
+import { SalesListing, Property, GraphQLResponse, PaginatedResponse, Registration } from './types';
 import { getAccessToken } from './auth'
 
-const DATE_LISTED_GTE = '2023-12-01';
+const DATE_LISTED_GTE = '2024-01-01';
 
-export async function fetchAndSyncData(
-  fetchFunction: Function,
-  upsertFunction: Function,
-  agencyToken: string,
-  db: any,
-  model: string
-) {
-  let after = getLastCursor(db, model);
-  let hasMore = true;
-  const limit: number = 100;
-
-  while (hasMore) {
-    debug(`Fetching data for model=${model} with after=${after} and limit=${limit}`);
-
-    let data = await fetchFunction(agencyToken, after, limit);
-
-    if (model == 'comments') {
-      data = data['salesListings']['registrations']      
-    } else if (model != 'salesListings') {
-      data = data['salesListings']
-    }
-
-    if (data[model] && data[model].items) {
-      const items = data[model].items.map((item: any) => ({
-        ...item,
-      }));
-
-      if (data[model].deletedIds) {
-        console.log('deleted ids:', data[model].deletedIds);
-      }
-
-      await upsertFunction(db, items, data[model].deletedIds);
-    }
-
-    hasMore = data[model].hasMore;
-    after = data[model].cursor;
-
-    await new Promise(resolve => setTimeout(resolve, 300));
-  }
-
-  debug(`Data synchronization for model=${model} completed`);
-  updateCursor(db, after, model);
-}
-
-async function fetchGraphQLData<T>(
+async function executeGraphQLQuery<GraphQLResponse>(
   agencyToken: string,
   query: string,
-  variables: Record<string, any>
-): Promise<T> {
+  variables: Record<string, unknown>
+): Promise<GraphQLResponse> {
   const graphqlEndpoint = `${process.env.GRAPHQL_ENDPOINT}`;
   const accessToken = await getAccessToken();
   const payload = {
@@ -77,16 +32,24 @@ async function fetchGraphQLData<T>(
 
     if (response.status != 200) {
       debug('unexpected response code: ', response.status);
+
       // todo: handle access token expired, rate limit responses and general errors
-    } 
+
+    }
 
     if (!response.data.data) {
       debug('unexpected response data: ', response.data);
     }
-    
+
     return response.data.data;
-  } catch (error: any) {
-    debug('Error fetching data:', error.response?.data || error.message);
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      debug('Error fetching data:', error.message);
+    } else if (axios.isAxiosError(error) && error.response) {
+      debug('Axios Error fetching data:', error.response.data);
+    } else {
+      debug('General Error fetching data:', String(error));
+    }
     throw error;
   }
 }
@@ -95,7 +58,7 @@ export async function fetchSalesListings(
   agencyToken: string,
   after: string | null = null,
   limit: number = 100
-): Promise<{ salesListings: { cursor: string; hasMore: boolean; items: SalesListing[] } }> {
+): Promise<PaginatedResponse<SalesListing>> {
   const query = `
     query($after: String, $limit: Int, $dateListedGte: ISO8601Date) {
       salesListings(after: $after, limit: $limit, dateListedGte: $dateListedGte) {
@@ -112,14 +75,20 @@ export async function fetchSalesListings(
 
   const variables = { after, limit, dateListedGte: DATE_LISTED_GTE };
 
-  return fetchGraphQLData(agencyToken, query, variables);
+  const data: GraphQLResponse = await executeGraphQLQuery(
+    agencyToken,
+    query,
+    variables
+  );
+
+  return data.salesListings
 }
 
 export async function fetchProperties(
   agencyToken: string,
   after: string | null = null,
   limit: number = 100
-): Promise<{ salesListings: { cursor: string; hasMore: boolean; items: Property[] } }> {
+): Promise<PaginatedResponse<Property>> {
   const query = `
     query($after: String, $limit: Int, $dateListedGte: ISO8601Date) {
       salesListings (dateListedGte: $dateListedGte) {
@@ -138,14 +107,25 @@ export async function fetchProperties(
 
   const variables = { after, limit, dateListedGte: DATE_LISTED_GTE };
 
-  return fetchGraphQLData(agencyToken, query, variables);
+  const data: GraphQLResponse = await executeGraphQLQuery(
+    agencyToken,
+    query,
+    variables
+  );
+
+  if (!data.salesListings?.properties) {
+    throw new Error('Properties data not found in response');
+  }
+
+  return data.salesListings.properties;
 }
+
 
 export async function fetchRegistrations(
   agencyToken: string,
   after: string | null = null,
   limit: number = 100
-): Promise<{ salesListings: { cursor: string; hasMore: boolean; items: Property[] } }> {
+): Promise<PaginatedResponse<Registration>> {
   const query = `
     query($after: String, $limit: Int, $dateListedGte: ISO8601Date) {
       salesListings(dateListedGte: $dateListedGte) {
@@ -172,34 +152,16 @@ export async function fetchRegistrations(
 
   const variables = { after, limit, dateListedGte: DATE_LISTED_GTE };
 
-  return fetchGraphQLData(agencyToken, query, variables);
+
+  const data: GraphQLResponse = await executeGraphQLQuery(
+    agencyToken,
+    query,
+    variables
+  );
+
+  if (!data.salesListings?.registrations) {
+    throw new Error('Registrations data not found in response');
+  }
+
+  return data.salesListings.registrations;
 }
-
-export async function fetchRegistrationComments(
-  agencyToken: string,
-  after: string | null = null,
-  limit: number = 100
-): Promise<{ salesListings: { cursor: string; hasMore: boolean; items: Property[] } }> {
-  const query = `
-    query($after: String, $limit: Int, $dateListedGte: ISO8601Date) {
-      salesListings(dateListedGte: $dateListedGte) {
-        registrations {
-          comments(after: $after, limit: $limit) {
-            cursor
-            hasMore
-            items {
-              id
-              content
-              registrationId
-            }
-          }
-        }
-      }
-    }
-  `;
-
-  const variables = { after, limit, dateListedGte: DATE_LISTED_GTE };
-
-  return fetchGraphQLData(agencyToken, query, variables);
-}
-
