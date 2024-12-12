@@ -5,6 +5,7 @@ import { debug } from './debug';
 import { getAccessToken, getAgencyToken } from './auth';
 import { Database as DbType } from 'better-sqlite3';
 import { getLastCursor, updateCursor } from './database';
+import { sleep } from './utils';
 
 
 interface SyncOperation<T extends PaginatedItem> {
@@ -56,7 +57,7 @@ export async function synchronizeData(
     hasMore = data.hasMore;
     after = data.cursor;
 
-    await new Promise(resolve => setTimeout(resolve, WAIT_TIME_BETWEEN_REQUESTS));
+    await sleep(WAIT_TIME_BETWEEN_REQUESTS);
   }
 
   debug(`Data synchronization for ${cursorKey} completed`);
@@ -81,7 +82,7 @@ async function main() {
         );
       }
 
-      await new Promise(resolve => setTimeout(resolve, POLLING_WAIT_TIME));
+      await sleep(POLLING_WAIT_TIME);
 
     }
   } catch (error) {
