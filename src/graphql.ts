@@ -1,44 +1,41 @@
 import axios from 'axios';
 import { debug } from './debug';
 import { SalesListing, Property, GraphQLResponse, PaginatedResponse, Registration } from './types';
-import { getAccessToken } from './auth'
+import { getAccessToken } from './auth';
 
 const DATE_LISTED_GTE = '2024-01-01';
 
-async function executeGraphQLQuery<GraphQLResponse>(
-  agencyToken: string,
-  query: string,
-  variables: Record<string, unknown>
-): Promise<GraphQLResponse> {
-  const graphqlEndpoint = `${process.env.GRAPHQL_ENDPOINT}`;
-  const accessToken = await getAccessToken();
-  const payload = {
-    token: agencyToken,
-    query,
-    variables,
-  };
+interface Agency {
+  id: string;
+  name: string;
+  apiUrl: string;
+}
 
-  console.log(query);
-  console.log(variables);
+interface GraphQLRequestOptions {
+  endpoint: string;
+  query: string;
+  variables?: Record<string, unknown>;
+}
+
+async function executeGraphQLRequest<T>(options: GraphQLRequestOptions): Promise<T> {
+  const { endpoint, query, variables = {} } = options;
+  const accessToken = await getAccessToken();
+  const payload = { query, variables };
 
   try {
-    const response = await axios.post(graphqlEndpoint, payload, {
+    const response = await axios.post(endpoint, payload, {
       headers: {
-        'Authorization': `Bearer ${accessToken}`,
+        Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
       },
     });
 
-
-    if (response.status != 200) {
-      debug('unexpected response code: ', response.status);
-
-      // todo: handle access token expired, rate limit responses and general errors
-
+    if (response.status !== 200) {
+      debug('Unexpected response code:', response.status);
     }
 
     if (!response.data.data) {
-      debug('unexpected response data: ', response.data);
+      debug('Unexpected response data:', response.data);
     }
 
     return response.data.data;
@@ -54,114 +51,141 @@ async function executeGraphQLQuery<GraphQLResponse>(
   }
 }
 
-export async function fetchSalesListings(
-  agencyToken: string,
-  after: string | null = null,
-  limit: number = 100
-): Promise<PaginatedResponse<SalesListing>> {
+async function fetchAgencyUrl(agencyName: string): Promise<string> {
   const query = `
-    query($after: String, $limit: Int, $dateListedGte: ISO8601Date) {
-      salesListings(after: $after, limit: $limit, dateListedGte: $dateListedGte) {
-        cursor
-        hasMore
-        items {
-          id
-          propertyId
-          status
-        }
+    query {
+      apiReferenceUrl
+      apiSchemaUrl
+      agencies {
+        id
+        name
+        apiUrl
       }
     }
   `;
 
-  const variables = { after, limit, dateListedGte: DATE_LISTED_GTE };
 
-  const data: GraphQLResponse = await executeGraphQLQuery(
-    agencyToken,
+  const data = await executeGraphQLRequest<{ agencies: Agency[] }>({
+    endpoint: `${process.env.DEVELOPER_GRAPHQL_ENDPOINT}`,
     query,
-    variables
-  );
+  });
 
-  return data.salesListings
+  const agency = data.agencies.find(a => a.name === agencyName);
+  if (!agency) {
+    throw new Error(`No agency found matching AGENCY_NAME: "${agencyName}" in response: ${JSON.stringify(data)}`);
+  }
+
+  debug('agency apiUrl', agency.apiUrl);
+  return agency.apiUrl;
 }
 
-export async function fetchProperties(
-  agencyToken: string,
-  after: string | null = null,
-  limit: number = 100
-): Promise<PaginatedResponse<Property>> {
-  const query = `
-    query($after: String, $limit: Int, $dateListedGte: ISO8601Date) {
-      salesListings (dateListedGte: $dateListedGte) {
-        properties(after: $after, limit: $limit) {
+export function createAgencyFetcher(agencyName: string) {
+
+  let agencyUrl: Promise<string> | null = null;
+
+  async function getAgencyUrl(): Promise<string> {
+    if (!agencyUrl) {
+      agencyUrl = fetchAgencyUrl(agencyName);
+    }
+    return agencyUrl;
+  }
+
+  async function fetchSalesListings(
+    after: string | null = null,
+    limit: number
+  ): Promise<PaginatedResponse<SalesListing>> {
+    const endpoint = await getAgencyUrl();
+    const query = `
+      query($after: String, $limit: Int, $dateListedGte: ISO8601Date) {
+        salesListings(after: $after, limit: $limit, dateListedGte: $dateListedGte) {
           cursor
           hasMore
           items {
             id
-            address
-            beds
+            propertyId
+            status
           }
         }
       }
-    }
-  `;
-
-  const variables = { after, limit, dateListedGte: DATE_LISTED_GTE };
-
-  const data: GraphQLResponse = await executeGraphQLQuery(
-    agencyToken,
-    query,
-    variables
-  );
-
-  if (!data.salesListings?.properties) {
-    throw new Error('Properties data not found in response');
+    `;
+    const variables = { after, limit, dateListedGte: DATE_LISTED_GTE };
+    const data = await executeGraphQLRequest<GraphQLResponse>({ endpoint, query, variables });
+    return data.salesListings;
   }
 
-  return data.salesListings.properties;
-}
-
-
-export async function fetchRegistrations(
-  agencyToken: string,
-  after: string | null = null,
-  limit: number = 100
-): Promise<PaginatedResponse<Registration>> {
-  const query = `
-    query($after: String, $limit: Int, $dateListedGte: ISO8601Date) {
-      salesListings(dateListedGte: $dateListedGte) {
-        registrations(after: $after, limit: $limit) {
-          cursor
-          hasMore
-          deletedIds
-          items {
-            id
-            interestLevel
-            contactId
-            salesListingId
-            contact {
+  async function fetchProperties(
+    after: string | null = null,
+    limit: number
+  ): Promise<PaginatedResponse<Property>> {
+    const endpoint = await getAgencyUrl();
+    const query = `
+      query($after: String, $limit: Int, $dateListedGte: ISO8601Date) {
+        salesListings(dateListedGte: $dateListedGte) {
+          properties(after: $after, limit: $limit) {
+            cursor
+            hasMore
+            items {
               id
-              fullName
-              email
-              mobile
+              address
+              beds
             }
           }
         }
       }
+    `;
+
+    const variables = { after, limit, dateListedGte: DATE_LISTED_GTE };
+    const data = await executeGraphQLRequest<GraphQLResponse>({ endpoint, query, variables });
+
+    if (!data.salesListings?.properties) {
+      throw new Error('Properties data not found in response');
     }
-  `;
 
-  const variables = { after, limit, dateListedGte: DATE_LISTED_GTE };
-
-
-  const data: GraphQLResponse = await executeGraphQLQuery(
-    agencyToken,
-    query,
-    variables
-  );
-
-  if (!data.salesListings?.registrations) {
-    throw new Error('Registrations data not found in response');
+    return data.salesListings.properties;
   }
 
-  return data.salesListings.registrations;
+  async function fetchRegistrations(
+    after: string | null = null,
+    limit: number
+  ): Promise<PaginatedResponse<Registration>> {
+    const endpoint = await getAgencyUrl();
+    const query = `
+      query($after: String, $limit: Int, $dateListedGte: ISO8601Date) {
+        salesListings(dateListedGte: $dateListedGte) {
+          registrations(after: $after, limit: $limit) {
+            cursor
+            hasMore
+            deletedIds
+            items {
+              id
+              interestLevel
+              contactId
+              salesListingId
+              contact {
+                id
+                fullName
+                email
+                mobile
+              }
+            }
+          }
+        }
+      }
+    `;
+
+    const variables = { after, limit, dateListedGte: DATE_LISTED_GTE };
+    const data = await executeGraphQLRequest<GraphQLResponse>({ endpoint, query, variables });
+
+    if (!data.salesListings?.registrations) {
+      throw new Error('Registrations data not found in response');
+    }
+
+    return data.salesListings.registrations;
+  }
+
+  return {
+    fetchSalesListings,
+    fetchProperties,
+    fetchRegistrations,
+  };
 }

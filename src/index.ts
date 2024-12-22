@@ -1,54 +1,31 @@
-import { fetchSalesListings, fetchProperties, fetchRegistrations } from './graphql';
+import { createAgencyFetcher } from './graphql'; // The new factory function from the previous refactor
 import { initDb, upsertSalesListings, upsertProperties, upsertRegistrations } from './database';
 import { PaginatedResponse, PaginatedItem } from './types';
 import { debug } from './debug';
-import { getAccessToken, getAgencyToken } from './auth';
 import { Database as DbType } from 'better-sqlite3';
 import { getLastCursor, updateCursor } from './database';
 import { sleep } from './utils';
 
-
 interface SyncOperation<T extends PaginatedItem> {
-  fetchFunction: (agencyToken: string, after: string | null, limit: number) => Promise<PaginatedResponse<T>>;
+  fetchFunction: (after: string | null, limit: number) => Promise<PaginatedResponse<T>>;
   upsertFunction: (db: DbType, items: T[], deletedIds?: string[]) => Promise<void>;
   cursorKey: string;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const syncOperations: Array<SyncOperation<any>> = [
-  {
-    fetchFunction: fetchSalesListings,
-    upsertFunction: upsertSalesListings,
-    cursorKey: 'salesListings',
-  },
-  {
-    fetchFunction: fetchProperties,
-    upsertFunction: upsertProperties,
-    cursorKey: 'properties',
-  },
-  {
-    fetchFunction: fetchRegistrations,
-    upsertFunction: upsertRegistrations,
-    cursorKey: 'registrations',
-  },
-];
-
 export async function synchronizeData(
-  fetchFunction: (agencyToken: string, after: string | null, limit: number) => Promise<PaginatedResponse<PaginatedItem>>,
+  fetchFunction: (after: string | null, limit: number) => Promise<PaginatedResponse<PaginatedItem>>,
   upsertFunction: (db: DbType, items: PaginatedItem[], deletedIds?: string[]) => Promise<void>,
-  agencyToken: string,
   db: DbType,
   cursorKey: string
 ) {
   let after = getLastCursor(db, cursorKey);
   let hasMore = true;
-  const limit: number = 100;
+  const limit: number = 500;
   const WAIT_TIME_BETWEEN_REQUESTS = 300;
 
   while (hasMore) {
     debug(`Fetching data for ${cursorKey} with after=${after} and limit=${limit}`);
-
-    const data = await fetchFunction(agencyToken, after, limit);
+    const data = await fetchFunction(after, limit);
 
     if (data.items) {
       await upsertFunction(db, data.items, data.deletedIds);
@@ -66,8 +43,31 @@ export async function synchronizeData(
 
 async function main() {
   const db = initDb();
-  const accessToken = await getAccessToken();
-  const agencyToken = await getAgencyToken(accessToken);
+  const agencyName = process.env.AGENCY_NAME;
+
+  if (!agencyName) {
+    throw new Error('AGENCY_NAME is not set in the environment');
+  }
+
+  const { fetchSalesListings, fetchProperties, fetchRegistrations } = createAgencyFetcher(agencyName);
+  const syncOperations: Array<SyncOperation<any>> = [
+    {
+      fetchFunction: fetchSalesListings,
+      upsertFunction: upsertSalesListings,
+      cursorKey: 'salesListings',
+    },
+    {
+      fetchFunction: fetchProperties,
+      upsertFunction: upsertProperties,
+      cursorKey: 'properties',
+    },
+    {
+      fetchFunction: fetchRegistrations,
+      upsertFunction: upsertRegistrations,
+      cursorKey: 'registrations',
+    },
+  ];
+
   const POLLING_WAIT_TIME = 10000;
 
   try {
@@ -76,14 +76,12 @@ async function main() {
         await synchronizeData(
           operation.fetchFunction,
           operation.upsertFunction,
-          agencyToken,
           db,
           operation.cursorKey
         );
       }
 
       await sleep(POLLING_WAIT_TIME);
-
     }
   } catch (error) {
     debug('Error syncing data:', error);
