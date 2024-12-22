@@ -1,5 +1,4 @@
 import axios, { AxiosError } from 'axios';
-import { debug } from './debug';
 
 export interface Agency {
   name: string;
@@ -41,6 +40,7 @@ export async function getAccessToken(): Promise<string> {
     accessToken = response.data.access_token;
     const expiresIn = response.data.expires_in;
     tokenExpiry = Date.now() + expiresIn * 1000;
+
 
     return accessToken;
 
