@@ -2,7 +2,7 @@ import { Database as DbType } from 'better-sqlite3';
 import { initDb, getLastCursor, updateCursor } from './database';
 import { debug } from './debug';
 import { sleep } from './utils';
-import parseSchema from './schema';
+import fetchAndParseSchema from './schema';
 import { executeGraphQLRequest, fetchAgencyUrl } from './graphql';
 const pluralize = require('pluralize');
 
@@ -32,11 +32,12 @@ export async function main() {
   const db = initDb();
 
   try {
-    const collections = await parseSchema(process.env.SCHEMA_URL);
+    const collections = await fetchAndParseSchema(process.env.SCHEMA_URL);
     const agencyUrl = await fetchAgencyUrl(process.env.AGENCY_NAME);
 
-    for (const coll of collections) {
-      await processCollection(agencyUrl, db, coll);
+    for (const collection of collections) {
+
+      await processCollection(agencyUrl, db, collection);
     }
 
     debug('All discovered collections have been fetched and saved.');
@@ -56,12 +57,38 @@ async function processCollection(agencyUrl: string, db: DbType, collection: Coll
   await fetchAndPersistPaginatedData(agencyUrl, db, collectionType, itemsBaseType, query, fields);
 }
 
+function getSQLiteTypeForField(field: Field): string {
+  if (!field.isScalar) {
+    return 'TEXT';
+  }
+
+  if (field.fieldName === 'ts') {
+    return 'INTEGER';
+  }
+
+  switch (field.fieldType) {
+    case 'String':
+    case 'ISO8601DateTime':
+      return 'TEXT';
+    case 'ID':
+    case 'Boolean':
+    case 'Int':
+      return 'INTEGER';
+    case 'Float':
+      return 'REAL';
+    default:
+      return 'TEXT';
+  }
+}
+
 function ensureTable(db: DbType, tableName: string, fields: Field[]) {
-  const columns = fields.map((field) =>
-    field.fieldName === 'id'
-      ? `${field.fieldName} TEXT PRIMARY KEY`
-      : `${field.fieldName} TEXT`
-  );
+  const columns = fields.map((field) => {
+    const columnType = getSQLiteTypeForField(field);
+    if (field.fieldName === 'id') {
+      return `${field.fieldName} ${columnType} PRIMARY KEY`;
+    }
+    return `${field.fieldName} ${columnType}`;
+  });
 
   const sql = `
     CREATE TABLE IF NOT EXISTS "${tableName}" (
@@ -69,8 +96,7 @@ function ensureTable(db: DbType, tableName: string, fields: Field[]) {
     )
   `;
   db.prepare(sql).run();
-
-  debug(`Ensured table "${tableName}".`);
+  debug(`Ensuring table "${tableName}" exists in database`);
 }
 
 function buildGraphQLQuery(baseType: string, fields: Field[]): string {
@@ -105,7 +131,7 @@ async function fetchAndPersistPaginatedData(
   let after: string | null = getLastCursor(db, collectionType) || null;
   let hasMore = true;
   const limit = 500;
-  const pauseBetweenRequests = 100;
+  const pauseBetweenRequests = 300;
 
   while (hasMore) {
     debug(`Fetching ${itemsBaseType} page after=${after} limit=${limit}`);
@@ -136,6 +162,7 @@ async function fetchAndPersistPaginatedData(
 }
 
 function upsertItems(db: DbType, tableName: string, fields: Field[], items: any[]) {
+  
   if (items.length === 0) return;
 
   const columnNames = fields.map((f) => f.fieldName);
@@ -154,6 +181,7 @@ function upsertItems(db: DbType, tableName: string, fields: Field[], items: any[
     });
     stmt.run(values);
   }
+
 }
 
 function toPlural(name: string): string {

@@ -16,7 +16,7 @@ function unwrapType(typeNode: TypeNode): string {
   throw new Error(`Unsupported type node kind: ${typeNode}`);
 }
 
-export default async function parseSchema(schemaUrl: string) {
+export default async function fetchAndParseSchema(schemaUrl: string) {
   // fetch schema from URL
   const response = await fetch(schemaUrl);
   const schemaString = await response.text();
@@ -32,7 +32,7 @@ export default async function parseSchema(schemaUrl: string) {
   });
 
   // known built-in scalars to check for
-  const builtInScalars = new Set(['String', 'ID', 'Boolean', 'Int', 'Float']);
+  const builtInScalars = new Set(['String', 'ID', 'Boolean', 'Int', 'Float', 'ISO8601DateTime' ]);
 
   // collect an array of collection-info objects
   const collectionsData: Array<{
