@@ -7,5 +7,8 @@ WORKDIR /usr/src/app
 COPY package*.json ./
 
 COPY . .
-CMD ["sh", "-c", "npm install && npm run start"]
+
+RUN chmod +x ./entrypoint.sh
+
+CMD ["./entrypoint.sh"]
 

@@ -4,7 +4,7 @@ import { getAccessToken } from './auth';
 import { sleep } from './utils';
 
 function parseResetTime(resetTimeHeader: string | undefined, defaultTime = 15): number {
-  // parse the reset time, ensuring it's a positive number (server is returning invalid reset time atm)
+  // parse the reset time, ensuring it's a positive number (Note: server is returning invalid reset time)
   if (resetTimeHeader) {
     // check if header looks like a valid number (length < 4)
     if (resetTimeHeader.length < 4) {
@@ -24,7 +24,7 @@ export async function executeGraphQLRequest(
     variables?: Record<string, any>;
     headers?: Record<string, string>;
   },
-  maxRetries = 3
+  maxRetries = 10
 ) {
   const { endpoint, query, variables = {}, headers = {} } = options;
   const accessToken = await getAccessToken();
@@ -45,7 +45,7 @@ export async function executeGraphQLRequest(
       const rateLimitTotal = parseInt(response.headers['x-ratelimit-limit'] || '100', 10);
       const remainingPercentage = (rateLimitRemaining / rateLimitTotal) * 100;
 
-      if (remainingPercentage <= 10) {
+      if (response.headers['x-ratelimit-remaining'] && remainingPercentage <= 10) {
         const resetTime = parseResetTime(response.headers['x-ratelimit-reset']);
         debug(`WARNING: Rate limit nearly exhausted. ${rateLimitRemaining}/${rateLimitTotal} remaining. Waiting ${resetTime} seconds.`);
         await sleep(resetTime * 1000);

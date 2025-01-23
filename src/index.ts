@@ -1,9 +1,11 @@
 import { Database as DbType } from 'better-sqlite3';
 import { initDb, getLastCursor, updateCursor } from './database';
+import { acquireLock, releaseLock } from './database';
 import { debug } from './debug';
 import { sleep } from './utils';
 import fetchAndParseSchema from './schema';
 import { executeGraphQLRequest, fetchAgencyUrl } from './graphql';
+import crypto from 'crypto';
 const pluralize = require('pluralize');
 
 interface Field {
@@ -18,6 +20,21 @@ interface Collection {
   fields: Field[];
 }
 
+const lockedCollections: string[] = [];
+let db: DbType | null = null;
+const processLockId = crypto.randomUUID();
+
+function handleSignal(signal: string) {
+  debug(`Received ${signal}, releasing locks...`);
+  for (const collectionType of lockedCollections) {
+    releaseLock(db!, collectionType, processLockId);
+  }
+  if (db) {
+    db.close();
+  }
+  process.exit(0); 
+}
+
 /**
  * Main entry point
  */
@@ -29,18 +46,35 @@ export async function main() {
     throw new Error('Missing AGENCY_NAME');
   }
 
-  const db = initDb();
+  db = initDb();
+
+  process.on('SIGINT', () => handleSignal('SIGINT'));
+  process.on('SIGTERM', () => handleSignal('SIGTERM'));
 
   try {
     const collections = await fetchAndParseSchema(process.env.SCHEMA_URL);
     const agencyUrl = await fetchAgencyUrl(process.env.AGENCY_NAME);
 
     for (const collection of collections) {
+      const { collectionType } = collection;
 
-      await processCollection(agencyUrl, db, collection);
+      const lockAcquired = acquireLock(db, collectionType, processLockId);
+
+      if (!lockAcquired) {
+        continue;
+      }
+
+      lockedCollections.push(collectionType);
+
+      try {
+        await processCollection(agencyUrl, db, collection);
+      } finally {
+        releaseLock(db, collectionType, processLockId);
+        lockedCollections.splice(lockedCollections.indexOf(collectionType), 1);
+      }
     }
 
-    debug('All discovered collections have been fetched and saved.');
+    debug('All discovered collections have been processed or skipped.');
   } catch (error) {
     debug('Error in main:', error);
   } finally {
@@ -131,7 +165,7 @@ async function fetchAndPersistPaginatedData(
   let after: string | null = getLastCursor(db, collectionType) || null;
   let hasMore = true;
   const limit = 500;
-  const pauseBetweenRequests = 300;
+  const pauseBetweenRequests = 500;
 
   while (hasMore) {
     debug(`Fetching ${itemsBaseType} page after=${after} limit=${limit}`);

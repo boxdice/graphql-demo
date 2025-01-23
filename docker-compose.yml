@@ -12,9 +12,10 @@ services:
       - DEVELOPER_GRAPHQL_ENDPOINT=${DEVELOPER_GRAPHQL_ENDPOINT}
       - DEBUG=App
       - SCHEMA_URL=${SCHEMA_URL}
+      - CONCURRENCY=${CONCURRENCY}
     working_dir: /usr/src/app
     volumes:
       - .:/usr/src/app
     stdin_open: true
     tty: true
-    command: sh -c "/bin/bash"
+    command: ["./entrypoint.sh"]
