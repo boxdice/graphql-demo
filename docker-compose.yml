@@ -1,4 +1,3 @@
-version: '3.8'
 services:
   app:
     image: boxdice/graphql-demo
@@ -13,6 +12,7 @@ services:
       - DEBUG=App
       - SCHEMA_URL=${SCHEMA_URL}
       - CONCURRENCY=${CONCURRENCY}
+      - PAUSE_BETWEEN_REQUESTS=${PAUSE_BETWEEN_REQUESTS}
     working_dir: /usr/src/app
     volumes:
       - .:/usr/src/app

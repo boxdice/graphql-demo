@@ -1,9 +1,9 @@
 import {
   parse,
   ObjectTypeDefinitionNode,
-  FieldDefinitionNode,
   TypeNode,
 } from 'graphql';
+import { Collection } from './types';
 
 
 function unwrapType(typeNode: TypeNode): string {
@@ -16,7 +16,7 @@ function unwrapType(typeNode: TypeNode): string {
   throw new Error(`Unsupported type node kind: ${typeNode}`);
 }
 
-export default async function fetchAndParseSchema(schemaUrl: string) {
+export default async function fetchAndParseSchema(schemaUrl: string): Promise<Collection[]> {
   // fetch schema from URL
   const response = await fetch(schemaUrl);
   const schemaString = await response.text();

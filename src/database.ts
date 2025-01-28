@@ -1,10 +1,10 @@
-import Database, { Database as DbType } from 'better-sqlite3';
+import Database, { Database as DbType, Statement } from 'better-sqlite3';
 import { debug } from './debug';
 
 const DEFAULT_LOCK_EXPIRY = 30; // seconds
 
 export function initDb(): DbType {
-  const db = new Database('./data.db');
+  const db: DbType = new Database('./data.db');
   db.pragma('journal_mode = WAL');
   ensureSyncStateTable(db);
   return db;
@@ -17,14 +17,14 @@ export function getLastCursor(db: DbType, model: string): string | null {
   return lastCursorRow?.cursor || null;
 }
 
-export function updateCursor(db: DbType, cursor: string | null, model: string) {
-  const updateSyncState = db.prepare(`
+export function updateCursor(db: DbType, cursor: string | null, model: string): void {
+  const updateSyncState: Statement = db.prepare(`
       UPDATE sync_state
       SET cursor = ?
       WHERE collectionType = ?
   `);
 
-  const insertSyncState = db.prepare(`
+  const insertSyncState: Statement = db.prepare(`
       INSERT OR IGNORE INTO sync_state (collectionType, cursor)
       VALUES (?, ?)
   `);
@@ -67,12 +67,11 @@ export function acquireLock(
     )
     .get(collectionType) as SyncStateRow;
 
-  const now = Math.floor(Date.now() / 1000);
-  const currentLockedBy = row.locked_by;
-  const currentLockedAt = row.locked_at;
-  const currentExpiry = row.lock_expiry_seconds || DEFAULT_LOCK_EXPIRY;
-
-  let canAcquire = false;
+  const now: number = Math.floor(Date.now() / 1000);
+  const currentLockedBy: string | null = row.locked_by;
+  const currentLockedAt: number | null = row.locked_at;
+  const currentExpiry: number = row.lock_expiry_seconds || DEFAULT_LOCK_EXPIRY;
+  let canAcquire: boolean = false;
 
   if (!currentLockedBy) {
     canAcquire = true;
@@ -98,7 +97,7 @@ export function acquireLock(
   }
 }
 
-export function releaseLock(db: DbType, collectionType: string, lockId: string) {
+export function releaseLock(db: DbType, collectionType: string, lockId: string): void {
   const row = db
     .prepare(`SELECT locked_by FROM sync_state WHERE collectionType = ?`)
     .get(collectionType) as { locked_by: string | null };
@@ -113,9 +112,9 @@ export function releaseLock(db: DbType, collectionType: string, lockId: string) 
   } 
 }
 
-export function ensureSyncStateTable(db: DbType) {
+export function ensureSyncStateTable(db: DbType): void {
   try {
-    const sql = `
+    const sql: string = `
       CREATE TABLE IF NOT EXISTS sync_state (
         collectionType TEXT PRIMARY KEY,
         cursor TEXT,

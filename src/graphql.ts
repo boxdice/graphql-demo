@@ -1,7 +1,9 @@
-import axios, { AxiosResponse, AxiosError } from 'axios';
+import axios, { AxiosResponse } from 'axios';
 import { debug } from './debug';
 import { getAccessToken } from './auth';
 import { sleep } from './utils';
+
+const RETRY_DELAY_MS = 5000;
 
 function parseResetTime(resetTimeHeader: string | undefined, defaultTime = 15): number {
   // parse the reset time, ensuring it's a positive number (Note: server is returning invalid reset time)
@@ -18,9 +20,9 @@ function parseResetTime(resetTimeHeader: string | undefined, defaultTime = 15): 
 }
 
 function checkRateLimit(response: AxiosResponse): Promise<void> | undefined {
-  const rateLimitRemaining = parseInt(response.headers['x-ratelimit-remaining'] || '0', 10);
-  const rateLimitTotal = parseInt(response.headers['x-ratelimit-limit'] || '100', 10);
-  const remainingPercentage = (rateLimitRemaining / rateLimitTotal) * 100;
+  const rateLimitRemaining: number = parseInt(response.headers['x-ratelimit-remaining'] || '0', 10);
+  const rateLimitTotal: number = parseInt(response.headers['x-ratelimit-limit'] || '100', 10);
+  const remainingPercentage: number = (rateLimitRemaining / rateLimitTotal) * 100;
 
   if (response.headers['x-ratelimit-remaining'] && remainingPercentage <= 10) {
     const resetTime = parseResetTime(response.headers['x-ratelimit-reset']);
@@ -36,8 +38,8 @@ export async function executeGraphQLRequest(
     variables?: Record<string, any>;
     headers?: Record<string, string>;
   },
-  maxRetries = 3
-) {
+  maxRetries: number = 3
+): Promise<any> {
   const { endpoint, query, variables = {}, headers = {} } = options;
   const accessToken = await getAccessToken();
   const payload = { query, variables };
@@ -69,7 +71,7 @@ export async function executeGraphQLRequest(
         // handle 502 (Gateway Timeout) errors 
         if (error.response?.status === 502) {
           debug(`[Attempt ${attempt}] Bad Gateway (502). Retrying.`);
-          await sleep(5000 * attempt);
+          await sleep(RETRY_DELAY_MS * attempt);
           continue;
         }
       }
@@ -85,7 +87,7 @@ export async function executeGraphQLRequest(
         throw error;
       }
 
-      await sleep(5000 * attempt);
+      await sleep(RETRY_DELAY_MS * attempt);
     }
   }
 

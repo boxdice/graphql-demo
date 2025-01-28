@@ -5,40 +5,20 @@ import { debug } from './debug';
 import { sleep } from './utils';
 import fetchAndParseSchema from './schema';
 import { executeGraphQLRequest, fetchAgencyUrl } from './graphql';
-import crypto from 'crypto';
+import { Field, Collection, ItemsData } from './types';
+
 const pluralize = require('pluralize');
-
-interface Field {
-  fieldName: string;
-  isScalar?: boolean;
-  fieldType?: string;
-}
-
-interface Collection {
-  collectionType: string;
-  itemsBaseType: string;
-  fields: Field[];
-}
 
 const lockedCollections: string[] = [];
 let db: DbType | null = null;
-const processLockId = crypto.randomUUID();
-
-function handleSignal(signal: string) {
-  debug(`Received ${signal}, releasing locks...`);
-  for (const collectionType of lockedCollections) {
-    releaseLock(db!, collectionType, processLockId);
-  }
-  if (db) {
-    db.close();
-  }
-  process.exit(0); 
-}
+const processNum = process.env.PROCESS_NUM || '1';
+const processLockId = `process-${processNum}`;
+const PAUSE_BETWEEN_REQUESTS = parseInt(process.env.PAUSE_BETWEEN_REQUESTS || '1000', 10);
 
 /**
  * Main entry point
  */
-export async function main() {
+export async function main(): Promise<void> {
   if (!process.env.SCHEMA_URL) {
     throw new Error('Missing SCHEMA_URL');
   }
@@ -61,6 +41,7 @@ export async function main() {
       const lockAcquired = acquireLock(db, collectionType, processLockId);
 
       if (!lockAcquired) {
+        debug(`Lock for collection "${collectionType}" not acquired. Skipping.`);
         continue;
       }
 
@@ -83,10 +64,10 @@ export async function main() {
   }
 }
 
-async function processCollection(agencyUrl: string, db: DbType, collection: Collection) {
+async function processCollection(agencyUrl: string, db: DbType, collection: Collection): Promise<void> {
   const { collectionType, itemsBaseType, fields } = collection;
+  
   ensureTable(db, itemsBaseType, fields);
-
   const query = buildGraphQLQuery(itemsBaseType, fields);
   await fetchAndPersistPaginatedData(agencyUrl, db, collectionType, itemsBaseType, query, fields);
 }
@@ -115,7 +96,18 @@ function getSQLiteTypeForField(field: Field): string {
   }
 }
 
-function ensureTable(db: DbType, tableName: string, fields: Field[]) {
+function handleSignal(signal: string): void {
+  debug(`Received ${signal}, releasing locks...`);
+  for (const collectionType of lockedCollections) {
+    releaseLock(db!, collectionType, processLockId);
+  }
+  if (db) {
+    db.close();
+  }
+  process.exit(0); 
+}
+
+function ensureTable(db: DbType, tableName: string, fields: Field[]): void {
   const columns = fields.map((field) => {
     const columnType = getSQLiteTypeForField(field);
     if (field.fieldName === 'id') {
@@ -130,7 +122,6 @@ function ensureTable(db: DbType, tableName: string, fields: Field[]) {
     )
   `;
   db.prepare(sql).run();
-  debug(`Ensuring table "${tableName}" exists in database`);
 }
 
 function buildGraphQLQuery(baseType: string, fields: Field[]): string {
@@ -161,11 +152,10 @@ async function fetchAndPersistPaginatedData(
   itemsBaseType: string,
   query: string,
   fields: Field[]
-) {
-  let after: string | null = getLastCursor(db, collectionType) || null;
+): Promise<void> {
+  let after: string | null = getLastCursor(db, collectionType);
   let hasMore = true;
   const limit = 500;
-  const pauseBetweenRequests = 500;
 
   while (hasMore) {
     debug(`Fetching ${itemsBaseType} page after=${after} limit=${limit}`);
@@ -180,8 +170,8 @@ async function fetchAndPersistPaginatedData(
       throw new Error(`No data returned for "${itemsBaseType}" query`);
     }
 
-    const itemsData = data[toPlural(itemsBaseType)];
-    hasMore = itemsData.hasMore;
+    const itemsData: ItemsData = data[toPlural(itemsBaseType)];
+    hasMore= itemsData.hasMore;
     after = itemsData.cursor;
 
     upsertItems(db, itemsBaseType, fields, itemsData.items || []);
@@ -189,19 +179,19 @@ async function fetchAndPersistPaginatedData(
 
     // TODO: handle "deletedIds"
 
-    await sleep(pauseBetweenRequests);
+    await sleep(PAUSE_BETWEEN_REQUESTS);
   }
 
   debug(`Finished fetching all data for "${itemsBaseType}".`);
 }
 
-function upsertItems(db: DbType, tableName: string, fields: Field[], items: any[]) {
+function upsertItems(db: DbType, tableName: string, fields: Field[], items: any[]): void {
   
   if (items.length === 0) return;
 
-  const columnNames = fields.map((f) => f.fieldName);
-  const placeholders = fields.map(() => '?').join(', ');
-  const sql = `
+  const columnNames: string[]  = fields.map((f) => f.fieldName);
+  const placeholders: string = fields.map(() => '?').join(', ');
+  const sql: string = `
     INSERT OR REPLACE INTO "${tableName}"
     (${columnNames.join(', ')})
     VALUES (${placeholders})
@@ -219,7 +209,7 @@ function upsertItems(db: DbType, tableName: string, fields: Field[], items: any[
 }
 
 function toPlural(name: string): string {
-  const lowerCased = name.charAt(0).toLowerCase() + name.slice(1);
+  const lowerCased: string = name.charAt(0).toLowerCase() + name.slice(1);
   return pluralize(lowerCased);
 }
 
