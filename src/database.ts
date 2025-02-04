@@ -1,7 +1,8 @@
 import Database, { Database as DbType, Statement } from 'better-sqlite3';
+import { Field } from './types';
 import { debug } from './debug';
 
-const DEFAULT_LOCK_EXPIRY = 30; // seconds
+const DEFAULT_LOCK_EXPIRY = 60 * 5; // seconds
 
 export function initDb(): DbType {
   const db: DbType = new Database('./data.db');
@@ -126,5 +127,69 @@ export function ensureSyncStateTable(db: DbType): void {
     db.prepare(sql).run();
   } catch (error) {
     debug('Error creating sync_state table:', error instanceof Error ? error.message : String(error));
+  }
+}
+
+export function upsertItems(db: DbType, tableName: string, fields: Field[], items: any[]): void {
+  
+  if (items.length === 0) return;
+
+  const columnNames: string[]  = fields.map((f) => f.fieldName);
+  const placeholders: string = fields.map(() => '?').join(', ');
+  const sql: string = `
+    INSERT OR REPLACE INTO "${tableName}"
+    (${columnNames.join(', ')})
+    VALUES (${placeholders})
+  `;
+  const stmt = db.prepare(sql);
+
+  for (const item of items) {
+    const values = fields.map((f) => {
+      const val = item[f.fieldName] ?? null;
+      return typeof val === 'boolean' ? (val ? 1 : 0) : val;
+    });
+    stmt.run(values);
+  }
+
+}
+
+export function ensureTable(db: DbType, tableName: string, fields: Field[]): void {
+  const columns = fields.map((field) => {
+    const columnType = getSQLiteTypeForField(field);
+    if (field.fieldName === 'id') {
+      return `${field.fieldName} ${columnType} PRIMARY KEY`;
+    }
+    return `${field.fieldName} ${columnType}`;
+  });
+
+  const sql = `
+    CREATE TABLE IF NOT EXISTS "${tableName}" (
+      ${columns.join(', ')}
+    )
+  `;
+  db.prepare(sql).run();
+}
+
+function getSQLiteTypeForField(field: Field): string {
+  if (!field.isScalar) {
+    return 'TEXT';
+  }
+
+  if (field.fieldName === 'ts') {
+    return 'INTEGER';
+  }
+
+  switch (field.fieldType) {
+    case 'String':
+    case 'ISO8601DateTime':
+      return 'TEXT';
+    case 'ID':
+    case 'Boolean':
+    case 'Int':
+      return 'INTEGER';
+    case 'Float':
+      return 'REAL';
+    default:
+      return 'TEXT';
   }
 }

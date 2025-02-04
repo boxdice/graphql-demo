@@ -1,5 +1,5 @@
 import { Database as DbType } from 'better-sqlite3';
-import { initDb, getLastCursor, updateCursor } from './database';
+import { initDb, getLastCursor, updateCursor, upsertItems, ensureTable } from './database';
 import { acquireLock, releaseLock } from './database';
 import { debug } from './debug';
 import { sleep } from './utils';
@@ -72,29 +72,6 @@ async function processCollection(agencyUrl: string, db: DbType, collection: Coll
   await fetchAndPersistPaginatedData(agencyUrl, db, collectionType, itemsBaseType, query, fields);
 }
 
-function getSQLiteTypeForField(field: Field): string {
-  if (!field.isScalar) {
-    return 'TEXT';
-  }
-
-  if (field.fieldName === 'ts') {
-    return 'INTEGER';
-  }
-
-  switch (field.fieldType) {
-    case 'String':
-    case 'ISO8601DateTime':
-      return 'TEXT';
-    case 'ID':
-    case 'Boolean':
-    case 'Int':
-      return 'INTEGER';
-    case 'Float':
-      return 'REAL';
-    default:
-      return 'TEXT';
-  }
-}
 
 function handleSignal(signal: string): void {
   debug(`Received ${signal}, releasing locks...`);
@@ -105,23 +82,6 @@ function handleSignal(signal: string): void {
     db.close();
   }
   process.exit(0); 
-}
-
-function ensureTable(db: DbType, tableName: string, fields: Field[]): void {
-  const columns = fields.map((field) => {
-    const columnType = getSQLiteTypeForField(field);
-    if (field.fieldName === 'id') {
-      return `${field.fieldName} ${columnType} PRIMARY KEY`;
-    }
-    return `${field.fieldName} ${columnType}`;
-  });
-
-  const sql = `
-    CREATE TABLE IF NOT EXISTS "${tableName}" (
-      ${columns.join(', ')}
-    )
-  `;
-  db.prepare(sql).run();
 }
 
 function buildGraphQLQuery(baseType: string, fields: Field[]): string {
@@ -154,8 +114,8 @@ async function fetchAndPersistPaginatedData(
   fields: Field[]
 ): Promise<void> {
   let after: string | null = getLastCursor(db, collectionType);
-  let hasMore = true;
-  const limit = 500;
+  let hasMore: boolean = true;
+  const limit: number = 500;
 
   while (hasMore) {
     debug(`Fetching ${itemsBaseType} page after=${after} limit=${limit}`);
@@ -185,28 +145,6 @@ async function fetchAndPersistPaginatedData(
   debug(`Finished fetching all data for "${itemsBaseType}".`);
 }
 
-function upsertItems(db: DbType, tableName: string, fields: Field[], items: any[]): void {
-  
-  if (items.length === 0) return;
-
-  const columnNames: string[]  = fields.map((f) => f.fieldName);
-  const placeholders: string = fields.map(() => '?').join(', ');
-  const sql: string = `
-    INSERT OR REPLACE INTO "${tableName}"
-    (${columnNames.join(', ')})
-    VALUES (${placeholders})
-  `;
-  const stmt = db.prepare(sql);
-
-  for (const item of items) {
-    const values = fields.map((f) => {
-      const val = item[f.fieldName] ?? null;
-      return typeof val === 'boolean' ? (val ? 1 : 0) : val;
-    });
-    stmt.run(values);
-  }
-
-}
 
 function toPlural(name: string): string {
   const lowerCased: string = name.charAt(0).toLowerCase() + name.slice(1);

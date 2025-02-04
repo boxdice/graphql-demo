@@ -5,27 +5,13 @@ import { sleep } from './utils';
 
 const RETRY_DELAY_MS = 5000;
 
-function parseResetTime(resetTimeHeader: string | undefined, defaultTime = 15): number {
-  // parse the reset time, ensuring it's a positive number (Note: server is returning invalid reset time)
-  if (resetTimeHeader) {
-    // check if header looks like a valid number (length < 5)
-    if (resetTimeHeader.length < 5) {
-      const parsedTime = parseInt(resetTimeHeader, 10);
-      return Math.max(defaultTime, Math.abs(parsedTime));
-    }
-  }
-  
-  // return default if header is still broken
-  return defaultTime;
-}
-
 function checkRateLimit(response: AxiosResponse): Promise<void> | undefined {
   const rateLimitRemaining: number = parseInt(response.headers['x-ratelimit-remaining'] || '0', 10);
   const rateLimitTotal: number = parseInt(response.headers['x-ratelimit-limit'] || '100', 10);
+  const resetTime = parseInt(response.headers['x-ratelimit-reset'] || '15', 10);
   const remainingPercentage: number = (rateLimitRemaining / rateLimitTotal) * 100;
 
   if (response.headers['x-ratelimit-remaining'] && remainingPercentage <= 10) {
-    const resetTime = parseResetTime(response.headers['x-ratelimit-reset']);
     debug(`WARNING: Rate limit nearly exhausted. ${rateLimitRemaining}/${rateLimitTotal} remaining. Waiting ${resetTime} seconds.`);
     return sleep(resetTime * 1000);
   }
@@ -60,10 +46,10 @@ export async function executeGraphQLRequest(
       if (axios.isAxiosError(error)) {
         // handle 429 (Rate Limit) errors
         if (error.response?.status === 429) {
-          const resetTime = parseResetTime(error.response.headers['x-ratelimit-reset']);
-          
+          const resetTime = parseInt(error.response.headers['x-ratelimit-reset'], 10);
+
           debug(`[Attempt ${attempt}] Rate limited (429). Waiting ${resetTime} seconds.`);
-          
+
           await sleep(resetTime * 1000);
           continue;
         }
