@@ -24,7 +24,7 @@ export async function executeGraphQLRequest(
     variables?: Record<string, any>;
     headers?: Record<string, string>;
   },
-  maxRetries: number = 3
+  maxRetries: number = 100
 ): Promise<any> {
   const { endpoint, query, variables = {}, headers = {} } = options;
   const accessToken = await getAccessToken();
@@ -54,12 +54,22 @@ export async function executeGraphQLRequest(
           continue;
         }
 
-        // handle 502 (Gateway Timeout) errors 
+        // handle 502 (Bad Gateway) errors
         if (error.response?.status === 502) {
           debug(`[Attempt ${attempt}] Bad Gateway (502). Retrying.`);
           await sleep(RETRY_DELAY_MS * attempt);
           continue;
         }
+
+        // handle 504 (Gateway Timeout) errors
+        if (error.response?.status === 504) {
+          debug(`[Attempt ${attempt}] Gateway Timeout (504). Retrying.`);
+          await sleep(RETRY_DELAY_MS * attempt);
+          continue;
+        }
+
+        debug('Axios Error fetching data:', error.response?.data, 'Payload:', payload);
+
       }
 
       if (attempt === maxRetries) {

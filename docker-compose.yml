@@ -13,6 +13,11 @@ services:
       - SCHEMA_URL=${SCHEMA_URL}
       - CONCURRENCY=${CONCURRENCY}
       - PAUSE_BETWEEN_REQUESTS=${PAUSE_BETWEEN_REQUESTS}
+      - DATABASE_URL=postgres://docker:docker@localhost:5432/graphql_demo
+      - RESET_DATABASE=${RESET_DATABASE}
+      - COLLECTION_TYPES=${COLLECTION_TYPES}
+    ports:
+      - "5432:5432"
     working_dir: /usr/src/app
     volumes:
       - .:/usr/src/app

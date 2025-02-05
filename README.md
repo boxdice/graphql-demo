@@ -2,8 +2,6 @@
 
 This example shows how to use the Box and Dice GraphQL API to sync data. It uses no GraphQL libraries or ORMs—just a minimal, demonstration-only approach, not intended for production.
 
-Once syncing is complete, open the data.db file in your favorite SQLite browser or editor to explore the downloaded data.
-
 ## Setup
 
 1. Copy `.env.example` to `.env` and update it with your values.
@@ -13,3 +11,9 @@ Once syncing is complete, open the data.db file in your favorite SQLite browser 
    $ docker compose build
    $ docker compose up
 ```
+After syncing, you can use your favorite PostgreSQL client to explore the downloaded data. For example, connect with:
+```
+jdbc:postgresql://127.0.0.1:5432/graphql_demo
+(user: docker, password: docker)
+```
+
