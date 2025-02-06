@@ -116,7 +116,7 @@ async function fetchAndPersistPaginatedData(
         variables: { after, limit },
       });
       const duration = ((Date.now() - startTime) / 1000).toFixed(2);
-      debug(`Fetched ${itemsBaseType} page after=${after} limit=${limit} in ${duration}s`);
+      debug(`[xRequestId=${data.xRequestId}] - ${duration}s - Fetched ${itemsBaseType} after=${after}`);
     } catch (error) {
       debug(`Error Fetching ${itemsBaseType} page after=${after} limit=${limit}`);
       throw error;

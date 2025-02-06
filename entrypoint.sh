@@ -30,7 +30,7 @@ for i in $(seq 1 "$CONCURRENCY"); do
   echo "Launching process $i..."
   PROCESS_NUM=$i npm run start &
   pids="$pids $!"
-  sleep 2
+  sleep 5
 done
 
 trap 'kill -TERM $pids' TERM INT

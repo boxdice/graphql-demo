@@ -41,6 +41,7 @@ export async function executeGraphQLRequest(
       });
 
       await checkRateLimit(response);
+      response.data.data.xRequestId = response.headers['x-request-id'];
       return response.data.data;
     } catch (error: unknown) {
       if (axios.isAxiosError(error)) {
