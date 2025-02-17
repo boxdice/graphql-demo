@@ -103,7 +103,7 @@ async function fetchAndPersistPaginatedData(
 ): Promise<void> {
   let after: string | null = await getLastCursor(db, collectionType);
   let hasMore: boolean = true;
-  const limit: number = 500;
+  const limit: number = 1000;
 
   while (hasMore) {
     const startTime = Date.now();
@@ -116,7 +116,7 @@ async function fetchAndPersistPaginatedData(
         variables: { after, limit },
       });
       const duration = ((Date.now() - startTime) / 1000).toFixed(2);
-      debug(`[xRequestId=${data.xRequestId}] - ${duration}s - Fetched ${itemsBaseType} after=${after}`);
+      debug(`[xRequestId=${data.xRequestId}] - ${duration}s - Fetched ${itemsBaseType} after=${after} count=${data[toPlural(itemsBaseType)].items.length}`);
     } catch (error) {
       debug(`Error Fetching ${itemsBaseType} page after=${after} limit=${limit}`);
       throw error;

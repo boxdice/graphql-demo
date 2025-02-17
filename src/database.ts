@@ -154,6 +154,14 @@ export async function upsertItems(
 ): Promise<void> {
   if (items.length === 0) return;
 
+  if (items.length > 1000) {
+    let ids = [];
+    for(const item of items) {
+      ids.push(item.id + " - " + item.name);
+    }
+    debug(`COUNT: ${items.length} - IDS: ${ids.join(', ')}`);
+  }
+
   const columnNames = fields.map((f) => f.fieldName);
   const columnsList = columnNames.map((name) => `"${name}"`).join(', ');
   const updateClause = columnNames
