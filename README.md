@@ -13,7 +13,7 @@ This example shows how to use the Box and Dice GraphQL API to sync data. It uses
 ```
 After syncing, you can use your favorite PostgreSQL client to explore the downloaded data. For example, connect with:
 ```
-jdbc:postgresql://127.0.0.1:5432/graphql_demo
+jdbc:postgresql://127.0.0.1:5433/graphql_demo
 (user: docker, password: docker)
 ```
 
