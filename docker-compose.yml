@@ -1,3 +1,4 @@
+version: '3.8'
 services:
   app:
     image: boxdice/graphql-demo
@@ -21,6 +22,10 @@ services:
     working_dir: /usr/src/app
     volumes:
       - .:/usr/src/app
+      - postgres_data:/var/lib/postgresql/data
     stdin_open: true
     tty: true
     command: ["./entrypoint.sh"]
+
+volumes:
+  postgres_data:

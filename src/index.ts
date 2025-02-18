@@ -1,5 +1,5 @@
 import { Pool } from 'pg';
-import { initDb, getLastCursor, updateCursor, upsertItems, ensureTable } from './database';
+import { initDb, getLastCursor, updateCursor, upsertItems, ensureTable, deleteItems } from './database';
 import { acquireLock, releaseLock } from './database';
 import { debug } from './debug';
 import { sleep, toPlural } from './utils';
@@ -130,10 +130,12 @@ async function fetchAndPersistPaginatedData(
     hasMore = itemsData.hasMore;
     after = itemsData.cursor;
 
-    await upsertItems(db, itemsBaseType, fields, itemsData.items || []);
+    await Promise.all([
+      upsertItems(db, itemsBaseType, fields, itemsData.items || []),
+      deleteItems(db, itemsBaseType, itemsData.deletedIds || [])
+    ]);
     await updateCursor(db, after, collectionType);
 
-    // TODO: handle "deletedIds"
 
     await sleep(PAUSE_BETWEEN_REQUESTS);
   }

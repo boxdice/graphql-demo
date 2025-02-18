@@ -14,4 +14,5 @@ export interface ItemsData {
   hasMore: boolean;
   cursor: string | null;
   items: any[];
+  deletedIds: string[];
 }

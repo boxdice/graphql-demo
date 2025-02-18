@@ -197,6 +197,23 @@ export async function upsertItems(
   }
 }
 
+export async function deleteItems(db: Pool, itemsBaseType: string, deletedIds: string[]): Promise<void> {
+  if (deletedIds.length === 0) return;
+
+  const query = `
+    DELETE FROM "${itemsBaseType}"
+    WHERE id = ANY($1)
+  `;
+
+  try {
+    const result = await db.query(query, [deletedIds]);
+    debug(`Deleted ${result.rowCount} records from ${itemsBaseType}`);
+  } catch (error) {
+    debug(`Error deleting records from ${itemsBaseType}:`, error);
+    throw error;
+  }
+}
+
 export async function ensureTable(
   pool: Pool,
   tableName: string,
@@ -225,6 +242,10 @@ function getPostgresTypeForField(field: Field): string {
 
   if (field.fieldName === 'ts') {
     return 'BIGINT';
+  }
+
+  if (field.fieldName === 'id') {
+    return 'INTEGER';
   }
 
   switch (field.fieldType) {

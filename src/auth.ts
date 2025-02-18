@@ -8,7 +8,7 @@ export interface Agency {
 let accessToken: string;
 let tokenExpiry: number;
 
-export async function getAccessToken(): Promise<string> {
+export async function getAccessToken(forceRefresh: boolean = false): Promise<string> {
   const tokenEndpoint = process.env.TOKEN_ENDPOINT;
   const clientId = process.env.CLIENT_ID;
   const clientSecret = process.env.CLIENT_SECRET;
@@ -17,7 +17,7 @@ export async function getAccessToken(): Promise<string> {
     throw new Error('Missing OAuth2 configuration in environment variables.');
   }
 
-  if (accessToken && tokenExpiry && Date.now() < tokenExpiry) {
+  if (accessToken && tokenExpiry && Date.now() < tokenExpiry && !forceRefresh) {
     return accessToken;
   }
 

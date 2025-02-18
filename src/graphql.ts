@@ -27,7 +27,7 @@ export async function executeGraphQLRequest(
   maxRetries: number = 100
 ): Promise<any> {
   const { endpoint, query, variables = {}, headers = {} } = options;
-  const accessToken = await getAccessToken();
+  let accessToken = await getAccessToken();
   const payload = { query, variables };
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -66,6 +66,14 @@ export async function executeGraphQLRequest(
         if (error.response?.status === 504) {
           debug(`[Attempt ${attempt}] Gateway Timeout (504). Retrying.`);
           await sleep(RETRY_DELAY_MS * attempt);
+          continue;
+        }
+
+        // handle 401 (Unauthorized) errors
+        if (error.response?.status === 401) {
+          debug(`[Attempt ${attempt}] Unauthorized (401). Retrying.`);
+          await sleep(RETRY_DELAY_MS * attempt);
+          accessToken = await getAccessToken(true);
           continue;
         }
 
