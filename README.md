@@ -1,6 +1,6 @@
 # GraphQL Client Sync with Box and Dice
 
-This example shows how to use the Box and Dice GraphQL API to sync data. It uses no GraphQL libraries or ORMs—just a minimal, demonstration-only approach, not intended for production.
+This example shows how to use the Box and Dice GraphQL API to sync data. It uses no GraphQL libraries or ORMs, just a minimal, demonstration-only approach, not intended for production.
 
 ## Setup
 
