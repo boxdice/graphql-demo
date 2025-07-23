@@ -41,6 +41,20 @@ export async function executeGraphQLRequest(
       });
 
       await checkRateLimit(response);
+
+      
+      if (response.data.errors) {
+        console.log('query', query);
+        console.log('variables', variables);
+        console.log('GraphQL errors:', response.data.errors);
+        throw new Error(`GraphQL errors: ${JSON.stringify(response.data.errors)}`);
+      }
+      
+      if (!response.data.data) {
+        console.log('Response data is undefined/null');
+        throw new Error('GraphQL response data is undefined or null');
+      }
+
       response.data.data.xRequestId = response.headers['x-request-id'];
       return response.data.data;
     } catch (error: unknown) {

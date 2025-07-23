@@ -6,5 +6,11 @@ export function sleep(ms: number): Promise<void> {
 
 export function toPlural(name: string): string {
     const lowerCased: string = name.charAt(0).toLowerCase() + name.slice(1);
-    return pluralize(lowerCased);
+    let plural: string = pluralize(lowerCased);
+    
+    if (plural === lowerCased) {
+        plural = lowerCased + 's';
+    }
+    
+    return plural;
 }
