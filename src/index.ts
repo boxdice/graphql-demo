@@ -28,7 +28,7 @@ export async function main(): Promise<void> {
 
   while (true) {
     try {
-      let collections = await fetchAndParseSchema(process.env.SCHEMA_URL);
+      let collections = await fetchAndParseSchema(process.env.SCHEMA_URL, db, processLockId);
       collections = filterCollections(collections, process.env.COLLECTION_TYPES);
       const agencyUrl = await fetchAgencyUrl(process.env.AGENCY_NAME);
 

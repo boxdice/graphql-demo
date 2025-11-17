@@ -4,7 +4,13 @@ import {
   TypeNode,
 } from 'graphql';
 import { Collection } from './types';
+import { Pool } from 'pg';
+import { acquireLock, releaseLock } from './database';
+import { debug } from './debug';
 
+// In-memory lock to prevent concurrent schema fetching within the same process
+let isSchemaFetchInProgress = false;
+const schemaFetchQueue: Array<() => void> = [];
 
 function unwrapType(typeNode: TypeNode): string {
   if (typeNode.kind === 'NamedType') {
@@ -16,7 +22,51 @@ function unwrapType(typeNode: TypeNode): string {
   throw new Error(`Unsupported type node kind: ${typeNode}`);
 }
 
-export default async function fetchAndParseSchema(schemaUrl: string): Promise<Collection[]> {
+export default async function fetchAndParseSchema(
+  schemaUrl: string,
+  db?: Pool,
+  processLockId?: string
+): Promise<Collection[]> {
+  // Wait for any in-process schema fetch to complete
+  if (isSchemaFetchInProgress) {
+    await new Promise<void>((resolve) => {
+      schemaFetchQueue.push(resolve);
+    });
+  }
+
+  isSchemaFetchInProgress = true;
+
+  try {
+    // If database pool and lock ID are provided, use database-level locking
+    if (db && processLockId) {
+      const lockAcquired = await acquireLock(db, 'schema-fetch', processLockId, 60);
+      
+      if (!lockAcquired) {
+        debug('Schema fetch lock not acquired. Another process is fetching the schema.');
+        // Return empty array to skip schema processing for this process
+        return [];
+      }
+
+      try {
+        return await fetchAndParseSchemaInternal(schemaUrl);
+      } finally {
+        await releaseLock(db, 'schema-fetch', processLockId);
+      }
+    } else {
+      // No database locking, just use in-process lock
+      return await fetchAndParseSchemaInternal(schemaUrl);
+    }
+  } finally {
+    isSchemaFetchInProgress = false;
+    // Resolve the next waiting caller if any
+    const nextResolve = schemaFetchQueue.shift();
+    if (nextResolve) {
+      nextResolve();
+    }
+  }
+}
+
+async function fetchAndParseSchemaInternal(schemaUrl: string): Promise<Collection[]> {
   // fetch schema from URL
   const response = await fetch(schemaUrl);
   const schemaString = await response.text();
