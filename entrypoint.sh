@@ -22,6 +22,15 @@ fi
 
 npm install
 
+# Run mutation tests if requested: sync once, then run tests
+if [ "$RUN_MUTATION_TESTS" = "true" ]; then
+  echo "Running single-pass sync before mutation tests..."
+  SINGLE_PASS=true npm run start
+  echo "Sync complete. Running mutation tests..."
+  npm run test:mutations
+  exit $?
+fi
+
 : "${CONCURRENCY:=1}"
 
 pids=""

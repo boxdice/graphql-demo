@@ -41,7 +41,6 @@ export async function getAccessToken(forceRefresh: boolean = false): Promise<str
     const expiresIn = response.data.expires_in;
     tokenExpiry = Date.now() + expiresIn * 1000;
 
-
     return accessToken;
 
   } catch (error: unknown) {

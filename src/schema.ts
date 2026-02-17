@@ -19,6 +19,9 @@ function unwrapType(typeNode: TypeNode): string {
 export default async function fetchAndParseSchema(schemaUrl: string): Promise<Collection[]> {
   // fetch schema from URL
   const response = await fetch(schemaUrl);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch schema from ${schemaUrl}: ${response.status} ${response.statusText}`);
+  }
   const schemaString = await response.text();
   const parsedSchema = parse(schemaString);
 

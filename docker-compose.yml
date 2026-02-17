@@ -9,6 +9,7 @@ services:
       - CLIENT_SECRET=${CLIENT_SECRET}
       - TOKEN_ENDPOINT=${TOKEN_ENDPOINT}
       - AGENCY_NAME=${AGENCY_NAME}
+      - AGENCY_ID=${AGENCY_ID}
       - DEVELOPER_GRAPHQL_ENDPOINT=${DEVELOPER_GRAPHQL_ENDPOINT}
       - DEBUG=App
       - SCHEMA_URL=${SCHEMA_URL}
@@ -17,6 +18,7 @@ services:
       - DATABASE_URL=postgres://docker:docker@localhost:5432/graphql_demo
       - RESET_DATABASE=${RESET_DATABASE}
       - COLLECTION_TYPES=${COLLECTION_TYPES}
+      - RUN_MUTATION_TESTS=${RUN_MUTATION_TESTS}
     ports:
       - "5433:5432"
     working_dir: /usr/src/app

@@ -12,6 +12,7 @@ let db: Pool | null = null;
 const processNum = process.env.PROCESS_NUM || '1';
 const processLockId = `process-${processNum}`;
 const PAUSE_BETWEEN_REQUESTS = parseInt(process.env.PAUSE_BETWEEN_REQUESTS || '1000', 10);
+const SINGLE_PASS = process.env.SINGLE_PASS === 'true';
 
 /**
  * Main entry point
@@ -30,7 +31,7 @@ export async function main(): Promise<void> {
     try {
       let collections = await fetchAndParseSchema(process.env.SCHEMA_URL);
       collections = filterCollections(collections, process.env.COLLECTION_TYPES);
-      const agencyUrl = await fetchAgencyUrl(process.env.AGENCY_NAME);
+      const agencyUrl = await fetchAgencyUrl(process.env.AGENCY_NAME, process.env.AGENCY_ID);
 
       for (const collection of collections) {
         const { collectionType } = collection;
@@ -57,6 +58,11 @@ export async function main(): Promise<void> {
       debug('All discovered collections have been processed or skipped.');
     } catch (error) {
       debug('Error in main:', error);
+    }
+
+    if (SINGLE_PASS) {
+      debug('Single pass complete. Exiting.');
+      break;
     }
 
     debug('Sleeping for 10 minutes...');

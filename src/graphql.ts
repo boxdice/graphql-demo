@@ -42,7 +42,6 @@ export async function executeGraphQLRequest(
 
       await checkRateLimit(response);
 
-      
       if (response.data.errors) {
         console.log('query', query);
         console.log('variables', variables);
@@ -91,7 +90,15 @@ export async function executeGraphQLRequest(
           continue;
         }
 
-        debug('Axios Error fetching data:', error.response?.data, 'Payload:', payload);
+        console.log(`[DEBUG] Axios error details:`);
+        console.log(`  Status: ${error.response?.status}`);
+        console.log(`  Status Text: ${error.response?.statusText}`);
+        console.log(`  Error Code: ${error.code}`);
+        console.log(`  Error Message: ${error.message}`);
+        console.log(`  URL: ${error.config?.url}`);
+        console.log(`  Response Headers:`, JSON.stringify(error.response?.headers, null, 2));
+        console.log(`  Response Data:`, JSON.stringify(error.response?.data, null, 2));
+        console.log(`  Query:`, query.trim().substring(0, 100));
 
       }
 
@@ -113,7 +120,7 @@ export async function executeGraphQLRequest(
   throw new Error('Max retries exceeded');
 }
 
-export async function fetchAgencyUrl(agencyName: string): Promise<string> {
+export async function fetchAgencyUrl(agencyName: string, agencyId?: string): Promise<string> {
   const query = `
     query {
       apiReferenceUrl
@@ -131,12 +138,26 @@ export async function fetchAgencyUrl(agencyName: string): Promise<string> {
     query,
   });
 
-  const agency = data.agencies.find((a: { name: string; }) => a.name === agencyName);
+  const agency = agencyId
+    ? data.agencies.find((a: { id: string }) => a.id === agencyId)
+    : data.agencies.find((a: { name: string }) => a.name === agencyName);
   if (!agency) {
-    throw new Error(`No agency found matching AGENCY_NAME: "${agencyName}" in response: ${JSON.stringify(data)}`);
+    const identifier = agencyId ? `AGENCY_ID: "${agencyId}"` : `AGENCY_NAME: "${agencyName}"`;
+    throw new Error(`No agency found matching ${identifier} in response: ${JSON.stringify(data)}`);
   }
 
-  debug('agency apiUrl', agency.apiUrl);
-  return agency.apiUrl;
+  let apiUrl = agency.apiUrl;
+
+  // The developer API may return a URL without the correct port (e.g. port 80 instead of 3000).
+  // Use DEVELOPER_GRAPHQL_ENDPOINT to derive the correct host and port.
+  if (process.env.DEVELOPER_GRAPHQL_ENDPOINT) {
+    const devUrl = new URL(process.env.DEVELOPER_GRAPHQL_ENDPOINT);
+    const agencyUrlParsed = new URL(apiUrl);
+    agencyUrlParsed.host = devUrl.host;
+    apiUrl = agencyUrlParsed.toString();
+  }
+
+  debug('agency apiUrl', apiUrl);
+  return apiUrl;
 }
 
