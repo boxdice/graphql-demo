@@ -22,7 +22,11 @@ import * as uploadPresign from './tests/upload-presign';
 import * as batchCreate from './tests/batch-create';
 import * as propertyTagTypeCreate from './tests/property-tag-type-create';
 import * as propertyCrud from './tests/property-crud';
+import * as buyingCriteriaCreate from './tests/buying-criteria-create';
 import * as leadFlowCreate from './tests/lead-flow-create';
+import * as propertySoldOutsideCreate from './tests/property-sold-outside-create';
+import * as generateReaXml from './tests/generate-rea-xml';
+import * as listingTagTypeCrud from './tests/listing-tag-type-crud';
 import * as endToEnd from './tests/end-to-end';
 
 const tests: TestModule[] = [
@@ -42,6 +46,9 @@ const tests: TestModule[] = [
   propertyTagTypeCreate,
   propertyCrud,
   leadFlowCreate,
+  buyingCriteriaCreate,
+  propertySoldOutsideCreate,
+  listingTagTypeCrud,
   endToEnd,
 ];
 
