@@ -27,6 +27,8 @@ import * as leadFlowCreate from './tests/lead-flow-create';
 import * as propertySoldOutsideCreate from './tests/property-sold-outside-create';
 import * as generateReaXml from './tests/generate-rea-xml';
 import * as listingTagTypeCrud from './tests/listing-tag-type-crud';
+import * as contactCategoryTypeCrud from './tests/contact-category-type-crud';
+import * as contactAssignCategory from './tests/contact-assign-category';
 import * as endToEnd from './tests/end-to-end';
 
 const tests: TestModule[] = [
@@ -49,6 +51,8 @@ const tests: TestModule[] = [
   buyingCriteriaCreate,
   propertySoldOutsideCreate,
   listingTagTypeCrud,
+  contactCategoryTypeCrud,
+  contactAssignCategory,
   endToEnd,
 ];
 
