@@ -1,0 +1,126 @@
+#!/usr/bin/env bash
+# Usage:
+#   ./bin/gql <query>              — sends query to the agency API
+#   ./bin/gql --developer <query> — sends query to the developer API
+#   ./bin/gql --schema            — fetches the SDL schema
+#
+# The query can be a GraphQL string or a file path (e.g. query.graphql).
+# Output is pretty-printed JSON.
+
+set -euo pipefail
+
+ENV_FILE="$(cd "$(dirname "$0")/.." && pwd)/.env"
+if [ ! -f "$ENV_FILE" ]; then
+  echo "Error: .env file not found at $ENV_FILE" >&2
+  exit 1
+fi
+
+# Load env vars from .env (skip comments and blank lines)
+set -a
+while IFS= read -r line || [ -n "$line" ]; do
+  [[ "$line" =~ ^[[:space:]]*# ]] && continue
+  [[ -z "${line// }" ]] && continue
+  export "$line" 2>/dev/null || true
+done < "$ENV_FILE"
+set +a
+
+# Validate required env vars
+for var in CLIENT_ID CLIENT_SECRET TOKEN_ENDPOINT DEVELOPER_GRAPHQL_ENDPOINT AGENCY_NAME; do
+  if [ -z "${!var:-}" ]; then
+    echo "Error: Missing required env var: $var" >&2
+    exit 1
+  fi
+done
+
+MODE="agency"
+QUERY=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --developer)
+      MODE="developer"
+      shift
+      ;;
+    --schema)
+      MODE="schema"
+      shift
+      ;;
+    *)
+      QUERY="$1"
+      shift
+      ;;
+  esac
+done
+
+# If argument looks like a file, read it
+if [ -n "$QUERY" ] && [ -f "$QUERY" ]; then
+  QUERY="$(cat "$QUERY")"
+fi
+
+DOCKER_RUN="docker run --rm --network boxdice --dns=1.1.1.1 --dns-search=. curlimages/curl:latest curl -sf --max-time 30"
+AUTH_HEADER="$(printf '%s:%s' "$CLIENT_ID" "$CLIENT_SECRET" | base64 -w0)"
+
+# Get OAuth token
+TOKEN=$($DOCKER_RUN \
+  -X POST \
+  -H "Authorization: Basic $AUTH_HEADER" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=client_credentials" \
+  "$TOKEN_ENDPOINT" | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4)
+
+if [ -z "$TOKEN" ]; then
+  echo "Error: Failed to obtain access token" >&2
+  exit 1
+fi
+
+# Schema mode: just fetch SDL
+if [ "$MODE" = "schema" ]; then
+  $DOCKER_RUN -H "Authorization: Bearer $TOKEN" "$SCHEMA_URL"
+  exit 0
+fi
+
+# Developer mode
+if [ "$MODE" = "developer" ]; then
+  ENDPOINT="$DEVELOPER_GRAPHQL_ENDPOINT"
+else
+  # Resolve agency API URL
+  AGENCY_RESPONSE=$($DOCKER_RUN \
+    -X POST \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/json" \
+    -d "{\"query\":\"{ agencies { name apiUrl } }\"}" \
+    "$DEVELOPER_GRAPHQL_ENDPOINT")
+
+  AGENCY_API_URL=$(echo "$AGENCY_RESPONSE" | grep -o '"apiUrl":"[^"]*"' | head -1 | cut -d'"' -f4)
+
+  if [ -z "$AGENCY_API_URL" ]; then
+    echo "Error: Could not resolve agency API URL for '$AGENCY_NAME'" >&2
+    echo "Response: $AGENCY_RESPONSE" >&2
+    exit 1
+  fi
+
+  # Replace host with the one from DEVELOPER_GRAPHQL_ENDPOINT (correct port)
+  ENDPOINT=$(python3 -c "
+from urllib.parse import urlparse, urlunparse
+dev = urlparse('$DEVELOPER_GRAPHQL_ENDPOINT')
+agency = urlparse('$AGENCY_API_URL')
+fixed = agency._replace(scheme=dev.scheme, netloc=dev.netloc)
+print(urlunparse(fixed))
+")
+fi
+
+if [ -z "$QUERY" ]; then
+  echo "Usage: $0 [--developer] [--schema] '<graphql query>'" >&2
+  echo "       $0 [--developer] path/to/query.graphql" >&2
+  exit 1
+fi
+
+# Escape query for JSON
+ESCAPED_QUERY=$(printf '%s' "$QUERY" | python3 -c "import json,sys; print(json.dumps(sys.stdin.read()))")
+
+$DOCKER_RUN \
+  -X POST \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{\"query\": $ESCAPED_QUERY}" \
+  "$ENDPOINT" | python3 -m json.tool

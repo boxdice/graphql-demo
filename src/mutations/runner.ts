@@ -23,12 +23,21 @@ import * as batchCreate from './tests/batch-create';
 import * as propertyTagTypeCreate from './tests/property-tag-type-create';
 import * as propertyCrud from './tests/property-crud';
 import * as buyingCriteriaCreate from './tests/buying-criteria-create';
+import * as buyingCriteriaCrud from './tests/buying-criteria-crud';
 import * as leadFlowCreate from './tests/lead-flow-create';
 import * as propertySoldOutsideCreate from './tests/property-sold-outside-create';
 import * as generateReaXml from './tests/generate-rea-xml';
 import * as listingTagTypeCrud from './tests/listing-tag-type-crud';
 import * as contactCategoryTypeCrud from './tests/contact-category-type-crud';
 import * as contactAssignCategory from './tests/contact-assign-category';
+import * as consultantCrud from './tests/consultant-crud';
+import * as officeCrud from './tests/office-crud';
+// Note: consultantCreate/Update and officeCreate/Update are not exposed by this API project
+import * as contactActivityCrud from './tests/contact-activity-crud';
+import * as propertyBatch from './tests/property-batch';
+import * as rentalInspectionCrud from './tests/rental-inspection-crud';
+import * as rentalListingUpdate from './tests/rental-listing-update';
+import * as salesInspectionCrud from './tests/sales-inspection-crud';
 import * as endToEnd from './tests/end-to-end';
 
 const tests: TestModule[] = [
@@ -47,12 +56,20 @@ const tests: TestModule[] = [
   batchCreate,
   propertyTagTypeCreate,
   propertyCrud,
+  propertyBatch,
   leadFlowCreate,
   buyingCriteriaCreate,
+  buyingCriteriaCrud,
   propertySoldOutsideCreate,
   listingTagTypeCrud,
   contactCategoryTypeCrud,
   contactAssignCategory,
+  // consultantCrud,       // consultantCreate/Update not exposed by this API project
+  // officeCrud,           // officeCreate/Update not exposed by this API project
+  // contactActivityCrud,  // contactActivityCreate/Update not exposed by this API project
+  rentalInspectionCrud,
+  rentalListingUpdate,
+  salesInspectionCrud,
   endToEnd,
 ];
 
