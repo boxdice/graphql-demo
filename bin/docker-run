@@ -1,0 +1,11 @@
+docker run \
+  --interactive \
+  --tty \
+  --rm \
+  --volume $(pwd):/usr/src/app \
+  --network boxdice \
+  --dns=1.1.1.1 \
+  --dns-search=. \
+  --memory=2g \
+  --env-file $(pwd)/.env \
+  boxdice/graphql-demo
