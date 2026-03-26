@@ -38,6 +38,7 @@ import * as propertyBatch from './tests/property-batch';
 import * as rentalInspectionCrud from './tests/rental-inspection-crud';
 import * as rentalListingUpdate from './tests/rental-listing-update';
 import * as salesInspectionCrud from './tests/sales-inspection-crud';
+import * as smsMessageSyncQuery from './tests/sms-message-sync-query';
 import * as endToEnd from './tests/end-to-end';
 
 const tests: TestModule[] = [
@@ -70,6 +71,7 @@ const tests: TestModule[] = [
   rentalInspectionCrud,
   rentalListingUpdate,
   salesInspectionCrud,
+  smsMessageSyncQuery,
   endToEnd,
 ];
 
