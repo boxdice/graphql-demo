@@ -38,6 +38,8 @@ import * as propertyBatch from './tests/property-batch';
 import * as rentalInspectionCrud from './tests/rental-inspection-crud';
 import * as rentalListingUpdate from './tests/rental-listing-update';
 import * as salesInspectionCrud from './tests/sales-inspection-crud';
+import * as contactUpdate from './tests/contact-update';
+import * as relationshipCrud from './tests/relationship-crud';
 import * as endToEnd from './tests/end-to-end';
 
 const tests: TestModule[] = [
@@ -70,6 +72,8 @@ const tests: TestModule[] = [
   rentalInspectionCrud,
   rentalListingUpdate,
   salesInspectionCrud,
+  contactUpdate,
+  relationshipCrud,
   endToEnd,
 ];
 
