@@ -41,6 +41,7 @@ import * as salesInspectionCrud from './tests/sales-inspection-crud';
 import * as smsMessageSyncQuery from './tests/sms-message-sync-query';
 import * as contactUpdate from './tests/contact-update';
 import * as relationshipCrud from './tests/relationship-crud';
+import * as registrationCrud from './tests/registration-crud';
 import * as endToEnd from './tests/end-to-end';
 
 const tests: TestModule[] = [
@@ -75,6 +76,7 @@ const tests: TestModule[] = [
   salesInspectionCrud,
   contactUpdate,
   relationshipCrud,
+  registrationCrud,
   smsMessageSyncQuery,
   endToEnd,
 ];

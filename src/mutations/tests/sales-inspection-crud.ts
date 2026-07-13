@@ -3,16 +3,22 @@ import { executeGraphQLRequest } from '../../graphql';
 import {
   getAgencyUrl,
   fetchActiveSalesListing,
+  fetchActiveConsultants,
   assertEqual,
   assertDefined,
 } from '../helpers';
 
-export const name = 'SalesInspectionCreate → SalesInspectionUpdate';
+export const name = 'SalesInspectionCreate → SalesInspectionUpdate → SalesInspectionDelete';
+
+// Sales inspection roles (open_time_reason) are not queryable via the API yet;
+// id 1 is the seeded "Open" role present on every shard.
+const OPEN_ROLE_ID = '1';
 
 export async function run(pool: Pool): Promise<void> {
   const agencyUrl = await getAgencyUrl();
 
   const listing = await fetchActiveSalesListing(pool);
+  const [consultant, otherConsultant] = await fetchActiveConsultants(pool, 2);
   console.log(`  Using sales listing: ${listing.id} (${listing.status})`);
 
   // ── Step 1: Create SalesInspection ──
@@ -23,6 +29,8 @@ export async function run(pool: Pool): Promise<void> {
     inspectionDate: '2025-08-20',
     startTime: '11:00',
     endTime: '11:30',
+    consultantIds: [consultant.id],
+    roleId: OPEN_ROLE_ID,
   };
 
   const createResult = await executeGraphQLRequest({
@@ -56,6 +64,7 @@ export async function run(pool: Pool): Promise<void> {
     inspectionDate: '2025-09-25',
     startTime: '15:00',
     endTime: '15:30',
+    consultantIds: [consultant.id, otherConsultant.id],
   };
 
   const updateResult = await executeGraphQLRequest({
@@ -79,4 +88,25 @@ export async function run(pool: Pool): Promise<void> {
   assertDefined('updated salesInspection', updated);
   assertEqual('updated inspectionDate', updated.inspectionDate, updateData.inspectionDate);
   console.log(`  Sales inspection updated: ${updated.id}, date=${updated.inspectionDate}`);
+
+  // ── Step 3: Delete SalesInspection ──
+  console.log('  Deleting sales inspection...');
+
+  const deleteResult = await executeGraphQLRequest({
+    endpoint: agencyUrl,
+    query: `
+      mutation salesInspectionDelete($id: ID!) {
+        salesInspectionDelete(id: $id) {
+          success
+          error
+        }
+      }
+    `,
+    variables: { id: salesInspection.id },
+  }, 1);
+
+  const { success, error: deleteError } = deleteResult.salesInspectionDelete;
+  assertEqual('delete error', deleteError, null);
+  assertEqual('delete success', success, true);
+  console.log(`  Sales inspection deleted: ${salesInspection.id}`);
 }

@@ -9,6 +9,10 @@ let accessToken: string;
 let tokenExpiry: number;
 
 export async function getAccessToken(forceRefresh: boolean = false): Promise<string> {
+  if (process.env.TOKEN) {
+    return process.env.TOKEN;
+  }
+
   const tokenEndpoint = process.env.TOKEN_ENDPOINT;
   const clientId = process.env.CLIENT_ID;
   const clientSecret = process.env.CLIENT_SECRET;

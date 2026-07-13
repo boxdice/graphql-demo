@@ -76,9 +76,9 @@ export async function run(pool: Pool): Promise<void> {
   const assigned = assignResult.contactAssignCategory;
   assertEqual('assign error should be null', assigned.error, null);
   assertDefined('assigned id should exist', assigned.id);
-  assertEqual('assigned contactId', assigned.contactId, contact.id);
-  assertEqual('assigned consultantId', assigned.consultantId, consultant.id);
-  assertEqual('assigned categoryTypeId', assigned.categoryTypeId, categoryTypeId);
+  assertEqual('assigned contactId', String(assigned.contactId), String(contact.id));
+  assertEqual('assigned consultantId', String(assigned.consultantId), String(consultant.id));
+  assertEqual('assigned categoryTypeId', String(assigned.categoryTypeId), String(categoryTypeId));
   assertEqual('assigned categoryName', assigned.categoryName, categoryName);
 
   console.log(`  Category assigned (id: ${assigned.id})`);

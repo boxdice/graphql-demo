@@ -13,7 +13,6 @@ export const name = 'ListingTagTypeCrud';
 export async function run(pool: Pool): Promise<void> {
   const agencyUrl = await getAgencyUrl();
   const listing = await fetchActiveSalesListing(pool);
-  const propertyId = listing.propertyId;
 
   // ── Create Listing Tag ──
   const tagName = `Listing Tag ${faker.string.alphanumeric(8)}`;
@@ -79,19 +78,13 @@ export async function run(pool: Pool): Promise<void> {
 
   console.log(`  Listing tag updated`);
 
-  // ── Assign Listing Tag to Property (via propertyAssignTag) ──
-  console.log(`  Assigning listing tag ${tagId} to property ${propertyId}...`);
+  // ── Assign Listing Tag to Sales Listing (via listingAssignTag) ──
+  console.log(`  Assigning listing tag ${tagId} to sales listing ${listing.id}...`);
 
   const assignMutation = `
-    mutation propertyAssignTag($attributes: PropertyTagAssignmentAttributes!) {
-      propertyAssignTag(attributes: $attributes) {
-        property {
-          id
-        }
-        propertyTag {
-          id
-          name
-        }
+    mutation listingAssignTag($attributes: ListingTagAttributes!) {
+      listingAssignTag(attributes: $attributes) {
+        success
         error
       }
     }
@@ -100,30 +93,22 @@ export async function run(pool: Pool): Promise<void> {
   const assignResult = await executeGraphQLRequest({
     endpoint: agencyUrl,
     query: assignMutation,
-    variables: { attributes: { propertyId, tagId } },
+    variables: { attributes: { salesListingId: listing.id, tagId } },
   }, 1);
 
-  const { property: assignedProperty, propertyTag: assignedTag, error: assignError } = assignResult.propertyAssignTag;
+  const { success: assignSuccess, error: assignError } = assignResult.listingAssignTag;
   assertEqual('assign error should be null', assignError, null);
-  assertDefined('assigned property should exist', assignedProperty);
-  assertDefined('assigned tag should exist', assignedTag);
-  assertEqual('assigned tag name', assignedTag.name, updatedName);
+  assertEqual('assign success', assignSuccess, true);
 
-  console.log(`  Listing tag assigned to property ${assignedProperty.id}`);
+  console.log(`  Listing tag assigned to sales listing ${listing.id}`);
 
-  // ── Unassign Listing Tag from Property ──
-  console.log(`  Unassigning listing tag ${tagId} from property ${propertyId}...`);
+  // ── Unassign Listing Tag from Sales Listing ──
+  console.log(`  Unassigning listing tag ${tagId} from sales listing ${listing.id}...`);
 
   const unassignMutation = `
-    mutation propertyUnassignTag($attributes: PropertyTagAssignmentAttributes!) {
-      propertyUnassignTag(attributes: $attributes) {
-        property {
-          id
-        }
-        propertyTag {
-          id
-          name
-        }
+    mutation listingUnassignTag($attributes: ListingTagAttributes!) {
+      listingUnassignTag(attributes: $attributes) {
+        success
         error
       }
     }
@@ -132,14 +117,14 @@ export async function run(pool: Pool): Promise<void> {
   const unassignResult = await executeGraphQLRequest({
     endpoint: agencyUrl,
     query: unassignMutation,
-    variables: { attributes: { propertyId, tagId } },
+    variables: { attributes: { salesListingId: listing.id, tagId } },
   }, 1);
 
-  const { property: unassignedProperty, error: unassignError } = unassignResult.propertyUnassignTag;
+  const { success: unassignSuccess, error: unassignError } = unassignResult.listingUnassignTag;
   assertEqual('unassign error should be null', unassignError, null);
-  assertDefined('unassigned property should exist', unassignedProperty);
+  assertEqual('unassign success', unassignSuccess, true);
 
-  console.log(`  Listing tag unassigned from property ${unassignedProperty.id}`);
+  console.log(`  Listing tag unassigned from sales listing ${listing.id}`);
 
   // ── Delete Listing Tag ──
   console.log(`  Deleting listing tag ${tagId}...`);
